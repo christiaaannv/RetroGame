@@ -47,53 +47,190 @@ main
 
 	
 begin
-	lda		#$15
+	lda		#$04
 	sta		VOLUME
 	
-	lda		#$BF
-	sta		SPEAKERA
-	jsr		wait
-	jsr		wait
 	
-	lda		#$C7
-	sta		SPEAKERA
-	jsr		wait
-	jsr		wait
-
-	lda		#$CB
-	sta		SPEAKERA
-	jsr		wait
-	jsr		wait
-
+	ldy		#$04
+topF
 	lda		#$CF
 	sta		SPEAKERA
 	jsr		wait
 	jsr		wait
-	
-	lda		#$D4
+	lda		#$00
 	sta		SPEAKERA
 	jsr		wait
-	jsr		wait
+
 
 	lda		#$DB
 	sta		SPEAKERA
 	jsr		wait
 	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+	
+	
+	lda		#$E1
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
+
+	lda		#$E7
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
+	dey
+	bne		topF
+
+	
+	
+
+	ldy		#$04
+topAm
+	lda		#$DB
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
 
 	lda		#$DF
 	sta		SPEAKERA
 	jsr		wait
 	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+	
+	
+	lda		#$E4
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
+
+	lda		#$E8
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
+	dey
+	bne		topAm
+	
+	
+	
+	
+		ldy		#$04
+topG
+	lda		#$D4
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
+
+	lda		#$DF
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+	
+	
+	lda		#$E1
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
+
+	lda		#$E4
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
+	dey
+	bne		topG
+	
+	
+	
+	ldy		#$04
+topC
+	lda		#$E7
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
 
 	lda		#$E1
 	sta		SPEAKERA
 	jsr		wait
 	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
 
+	dey
+	bne		topC
+	
+
+
+	ldy		#$04
+topC2
+	lda		#$E7
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
+
+	lda		#$F0
+	sta		SPEAKERA
+	jsr		wait
+	jsr		wait
+	lda		#$00
+	sta		SPEAKERA
+	jsr		wait
+
+	dey
+	bne		topC2
+	
+	
+	
 	jmp		begin
 	
 
-wait
+wait SUBROUTINE
 	lda		ACR
 	and		#$DF		; set timer to operate in 1 shot mode		
 	sta		ACR
@@ -103,10 +240,36 @@ wait
 	lda		#$FF
 	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
 		
-loop 
+.loop 
     lda		T2HIGH
 	and		#$FF
-    bne		loop
+    bne		.loop
 
+	rts
+	
+	
+waitLonger SUBROUTINE
+
+	ldy		#$00
+.top
+
+	lda		ACR
+	and		#$DF		; set timer to operate in 1 shot mode		
+	sta		ACR
+	
+	lda		#$FF
+	sta		T2LOW		; store low order byte of timer		
+	lda		#$FF
+	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
+	
+.loop 
+    lda		T2HIGH
+	and		#$FF
+    bne		.loop
+
+	iny
+	cpy		#$05
+	bne		.top
+	
 	rts
 	
