@@ -53,7 +53,10 @@ begin
 	
 	ldy		#$04
 topF
-	lda		#$CF
+	lda		#$D1
+	sta		SPEAKERB
+
+	lda		#$D1
 	sta		SPEAKERA
 	jsr		wait
 	jsr		wait
@@ -97,6 +100,10 @@ topF
 	ldy		#$04
 topAm
 	lda		#$DB
+	sta		SPEAKERB
+
+
+	lda		#$DB
 	sta		SPEAKERA
 	jsr		wait
 	jsr		wait
@@ -136,9 +143,11 @@ topAm
 	
 	
 	
-	
 		ldy		#$04
 topG
+	lda		#$D4
+	sta		SPEAKERB
+
 	lda		#$D4
 	sta		SPEAKERA
 	jsr		wait
@@ -178,6 +187,8 @@ topG
 	bne		topG
 	
 	
+	lda		#$00
+	sta		SPEAKERB
 	
 	ldy		#$04
 topC
@@ -205,7 +216,7 @@ topC
 
 	ldy		#$04
 topC2
-	lda		#$E7
+	lda		#$F0
 	sta		SPEAKERA
 	jsr		wait
 	jsr		wait
@@ -214,7 +225,7 @@ topC2
 	jsr		wait
 
 
-	lda		#$F0
+	lda		#$E7
 	sta		SPEAKERA
 	jsr		wait
 	jsr		wait
