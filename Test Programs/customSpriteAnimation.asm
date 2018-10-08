@@ -68,15 +68,7 @@ loop1
 	sta		VOLandAUXCOLOR
 	
 	
-	
-	
-	
-	
-	
-	
-	
-	
-	
+		
 	ldx		#$0B
 	stx		$900f		; set background color to black and border color to cyan -- see appendices for codes and memory locations to store in 
 
@@ -282,6 +274,8 @@ getInput		SUBROUTINE		; loads a with..
 	
 	
 	
+	
+	
 ; clears all data from the input buffer (glitchy)
 clearInputBufferA		SUBROUTINE
 
@@ -308,6 +302,7 @@ clearInputBufferB		SUBROUTINE
 	cpy		#$09				; repeat for entire buffer
 	bne		.loop				; if not, extract again
 	rts	
+	
 	
 	
 	
@@ -462,7 +457,7 @@ ram_23		.byte	$00
 	
 	ORG		$1C00		; forces our fighter graphics to begin where Vic is obtaining its character information from (character code 0 refers to the first 8 bytes starting at 1C00, and so on)
 
-fighter					; 192 bytes (character codes 1 - 23)
+fighter					; 192 bytes (character codes 0 - 23)
 
 	.byte	$00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $01, $03, $07, $0f, $0e, $0e, $06, $07, $07
 	.byte	$02, $05, $16, $0a, $0a, $0a, $02, $02, $02, $32, $3e, $3e, $3f, $7f, $7f, $7b, $7c, $7f, $7f, $1f, $18, $1e, $0f, $0f, $0c, $06, $07, $0f, $0f, $0e, $1e, $1e, $1e, $3e, $3c, $3c, $78, $f8, $f8, $f0, $c0, $c0, $00, $00, $00, $00, $00, $c0 
