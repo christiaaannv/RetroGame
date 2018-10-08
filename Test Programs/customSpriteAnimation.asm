@@ -22,6 +22,7 @@ GETIN					.equ	$FFE4
 
 FIGHTERSTAND			.equ	$1c00	; default stance
 FIGHTERSTEP				.equ	$1d00	; mid step (store starting at 256 bytes since the blank space character is at 248 bytes and we can't overwrite that as we need to use it to clear the screen)
+										; this is not necessary since character codes are custom now, any memory not stored over is empty space
 
 ACR						.equ	$911B 	;912B - bit6
 IFR						.equ	$911D 	;912B
@@ -51,7 +52,7 @@ main
 	ldx		#$00
 loop1
 	lda		smileSmoking,x	
-	sta		$1ca0,x		
+;	sta		$1ca0,x		
 	inx		
 	cpx		#$08
 	bne		loop1
@@ -65,162 +66,6 @@ loop1
 	lda		VOLandAUXCOLOR			
 	ora		#$80					; set the bit for auxiliary color = orange
 	sta		VOLandAUXCOLOR
-	
-
-storeFighter	SUBROUTINE	
-	ldx		#$00
-	ldy		#$00
-.loop1								; stores 48 bytes in custom char location representing the left column of the player (loops 48x)
-	lda		fighter,x
-	sta		FIGHTERSTAND,y
-	
-	txa
-	clc
-	adc		#$04
-	tax	
-	
-
-	iny
-	
-	cpy		#$30					;48
-	bne		.loop1
-
-
-	ldx		#$01
-	ldy		#$30					; start at y = 48
-.loop2								; stores 48 bytes in custom char location representing the second from the left column of the player (loops 48x)
-	lda		fighter,x
-	sta		FIGHTERSTAND,y
-	
-	txa
-	clc
-	adc		#$04
-	tax	
-	
-
-	iny
-	
-	cpy		#$60					;96
-	bne		.loop2
-
-	
-	ldx		#$02
-	ldy		#$60					; start at y = 96
-.loop3								; stores 48 bytes in custom char location representing the third from the left column of the player (loops 48x)
-	lda		fighter,x
-	sta		FIGHTERSTAND,y
-	
-	txa
-	clc
-	adc		#$04
-	tax	
-	
-
-	iny
-	
-	cpy		#$90					;144
-	bne		.loop3
-	
-	
-	
-	ldx		#$03
-	ldy		#$90					; start at y = 144
-.loop4								; stores 48 bytes in custom char location representing the final column of the player (loops 48x)
-	lda		fighter,x
-	sta		FIGHTERSTAND,y
-	
-	txa
-	clc
-	adc		#$04
-	tax	
-	
-	iny
-	
-	cpy		#$C0					;192
-	bne		.loop4
-	
-	
-	
-	
-	
-	
-	
-	
-	
-storeFighterStep	SUBROUTINE	
-	ldx		#$00
-	ldy		#$00
-.loop1								; stores 48 bytes in custom char location representing the left column of the player (loops 48x)
-	lda		fighterStep,x
-	sta		FIGHTERSTEP,y
-	
-	txa
-	clc
-	adc		#$04
-	tax	
-	
-
-	iny
-	
-	cpy		#$30					;48
-	bne		.loop1
-
-
-	ldx		#$01
-	ldy		#$30					; start at y = 48
-.loop2								; stores 48 bytes in custom char location representing the second from the left column of the player (loops 48x)
-	lda		fighterStep,x
-	sta		FIGHTERSTEP,y
-	
-	txa
-	clc
-	adc		#$04
-	tax	
-	
-
-	iny
-	
-	cpy		#$60					;96
-	bne		.loop2
-
-	
-	ldx		#$02
-	ldy		#$60					; start at y = 96
-.loop3								; stores 48 bytes in custom char location representing the third from the left column of the player (loops 48x)
-	lda		fighterStep,x
-	sta		FIGHTERSTEP,y
-	
-	txa
-	clc
-	adc		#$04
-	tax	
-	
-
-	iny
-	
-	cpy		#$90					;144
-	bne		.loop3
-	
-	
-	
-	ldx		#$03
-	ldy		#$90					; start at y = 144
-.loop4								; stores 48 bytes in custom char location representing the final column of the player (loops 48x)
-	lda		fighterStep,x
-	sta		FIGHTERSTEP,y
-	
-	txa
-	clc
-	adc		#$04
-	tax	
-	
-	iny
-	
-	cpy		#$C0					;192
-	bne		.loop4
-	
-	
-	
 	
 	
 	
@@ -244,21 +89,21 @@ storeFighterStep	SUBROUTINE
 	stx		$02
 	
 
-	; store where top left of fighter is in screen memory into ram locations
+	; store where top left of fighter is in screen memory into ram locations (basically represents x,y coordinates)
 	ldx		#$76
 	stx		ram_00
 	ldx		#$1f
 	stx		ram_01
 
+
+	lda		#$00
+	sta		ram_02			; ram_02 will be used to store the character code to begin drawing from depending on the current state of animation.
+	jsr		drawFighter
+
+	
+	
 	
 mainLoop	SUBROUTINE
-
-
-	ldx		#$00
-	stx		ram_02			; ram_02 will be used to store the character code to begin drawing from depending on the current state of animation.
-	
-	jsr		drawDefault
-
 
 	jsr		getInput
 	
@@ -267,42 +112,48 @@ mainLoop	SUBROUTINE
 	cmp		#$02			; was left pressed
 	bne		.checkRight
 
-	jsr		clearFighter
-	
 	lda		ram_00
+	cmp		#$76			; is character at left edge of screen
+	beq		mainLoop		; if so, no movement left
+	
+	jsr		clearFighter	; otherwise, clear character
+	
+	lda		ram_00			; make new character position 1 column to left
 	sec
 	sbc		#$01
 	sta		ram_00
-
-	jsr		drawStep
-	jsr		wait
-	jsr		wait
-	jsr		drawDefault
-	jsr		waitShort
+	jmp		.doStepAnimation
 	
-	jsr		clearInputBuffer
+
 
 .checkRight
-	cmp		#$03
+	cmp		#$03			; was right pressed
 	bne		mainLoop
 	
-
-	jsr		clearFighter
-	
 	lda		ram_00
+	cmp		#$88			; is character at right edge of screen
+	beq		mainLoop		; if so, no movement left
+
+	jsr		clearFighter	; otherwise, clear character
+	
+	lda		ram_00			; make new character position 1 column to right
 	clc
 	adc		#$01
 	sta		ram_00
-
 	
-	jsr		drawStep
-	jsr		wait
-	jsr		wait
-	jsr		drawDefault
-	jsr		waitShort
-
-	jsr		clearInputBuffer
 	
+.doStepAnimation
+	lda		#$18			; draw fighter graphic starting from character code 32 (x20)
+	sta		ram_02
+	jsr		drawFighter
+	jsr		wait			; busy loop (likely be implemented using interrupts in the final version)
+	jsr		wait
+	lda		#$00			;  draw fighter graphic starting from character code 0
+	sta		ram_02
+	jsr		drawFighter
+	jsr		waitShort		; busy loop
+		
+	jsr		clearInputBufferB
 	jmp		mainLoop
 	
 	
@@ -316,7 +167,7 @@ waitShort			SUBROUTINE
 	and		#$DF		; set timer to operate in 1 shot mode		
 	sta		ACR
 	
-	lda		#$FF
+	lda		#$00
 	sta		T2LOW		; store low order byte of timer		
 	lda		#$8F
 	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
@@ -337,8 +188,8 @@ wait				SUBROUTINE
 	and		#$DF		; set timer to operate in 1 shot mode		
 	sta		ACR
 	
-	lda		#$FF
-	sta		T2LOW		; store low order byte of timer		
+	lda		#$00
+	sta		T2LOW		; store low order byte of timer	countdown	
 	lda		#$FF
 	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
 		
@@ -352,10 +203,10 @@ wait				SUBROUTINE
 
 	
 	
-	
-	
+
+; draws empty space characters over the entire screen	
 clearScreen		SUBROUTINE
-	lda		#$20			; code for an empty space
+	lda		#$00				; first code is upper left cell in fighter step (a blank cell)
 
 	ldx		#$00
 .loop1
@@ -396,7 +247,6 @@ getInput		SUBROUTINE		; loads a with..
 	cmp		#$00				; check if buffer was empty
 	bne		.checkForUpKey		; if so, process input
 
-	jsr		clearInputBuffer
 	rts							; else return
 	
 .checkForUpKey
@@ -407,21 +257,21 @@ getInput		SUBROUTINE		; loads a with..
 	rts
 		
 .checkForDownKey
-	cmp		#$11		
+	cmp		#$11				; ascii code for down key	
 	bne		.checkForLeftKey
 	
 	lda		#$01
 	rts
 	
 .checkForLeftKey
-	cmp		#$9d		
+	cmp		#$9d				; ascii code for left key			
 	bne		.checkForRightKey
 
 	lda		#$02
 	rts
 	
 .checkForRightKey
-	cmp		#$1d		
+	cmp		#$1d				; ascii code for right key			
 	bne		.return				
 
 	lda		#$03
@@ -432,8 +282,8 @@ getInput		SUBROUTINE		; loads a with..
 	
 	
 	
-
-clearInputBuffer		SUBROUTINE
+; clears all data from the input buffer (glitchy)
+clearInputBufferA		SUBROUTINE
 
 .loop
 	jsr		GETIN				; read from input buffer
@@ -443,194 +293,82 @@ clearInputBuffer		SUBROUTINE
 	
 	
 	
-	
-	
-drawDefault	 SUBROUTINE		
-	
-	lda		ram_00
-	sta		$01
 
-	ldx		#$00			; start with screen code 0
+	
+; clears all data from the input buffer except for the first character in the buffer
+; use to eliminate input queue growth resultant of multiple key presses during animations 
+clearInputBufferB		SUBROUTINE
+
+	ldy		#$00
+	lda		#$00
+.loop
+	sta		$0278,y				; store 0 in buffer
+
+	iny
+	cpy		#$09				; repeat for entire buffer
+	bne		.loop				; if not, extract again
+	rts	
+	
+	
+	
+	
+; draws the fighter's current animation frame
+; ram_00 must hold the lower byte of the address in screen memory for the top left cell of the character
+; ram_01 must hold the upper byte of the address in screen memory for the top left cell of the character
+; ram_02 must hold the character code to begin printing from (depends on the fighter's animation frame) 	
+
+
+drawFighter	 SUBROUTINE	
+	
+	lda		ram_00			; ram_00 must hold the lower byte of the address in screen memory for the top left cell of the character
+	sta		$01				; store in 0 page for indirect indexed addressing
+	sta		ram_15			; store in ram_15 for intermediate calculations
+
+	lda		ram_02			
+	clc
+	adc		#$06
+	sta		ram_03			
+	ldx		ram_02			; start with screen code 32
 	ldy		#$00			; start at screen memory location 1ee4 + 0
+	sty		ram_16			; store 0 in ram_16 - used for tracking the character code to print next
+	
 .loop1	
-	txa
-	sta		($01),y			; store screen codes in screen memory, offset by x
+	txa						
+	clc
+	adc		ram_16			; ram_16 holds the current character code offset for printing (from 0 - 23 for our 4x6 cell fighter)
+	sta		($01),y			; store screen codes in screen memory where character currently resides, offset by y = {0, 22, 44, ... 132} for successive columns 
 
 	tya
 	clc
-	adc		#$16			; add 22 to move down one cell in screen memory since each row is 22 cells
+	adc		#$16			; add 22 to y to move down one cell in screen memory since each row is 22 cells (x16 = 22)
 	tay
 	
-	inx
-	cpx		#$06			; print first 6 screen codes from top to bottom
-	bne		.loop1
-
-	
-	
-	
-	lda		ram_00
-	clc
-	adc		#$01
-	sta		$01
-
-	ldx		#$06			; column 2 starts with screen code 6
-	ldy		#$00
-.loop2	
-	txa
-	sta		($01),y			; 1ee5 is 1 cell to the right of 1ee4 (one column to the right)
-
-	tya
-	clc
-	adc		#$16
-	tay
-	
-	inx
-	cpx		#$0C
-	bne		.loop2
-	
-	
-
-	lda		ram_00
-	clc
-	adc		#$02
-	sta		$01
-
-	ldx		#$0C
-	ldy		#$00
-.loop3	
-	txa
-	sta		($01),y
-
-	tya
-	clc
-	adc		#$16
-	tay
-	
-	inx
-	cpx		#$12
-	bne		.loop3
-
-	
-
-	lda		ram_00
-	clc
-	adc		#$03
-	sta		$01
-
-	ldx		#$12
-	ldy		#$00
-.loop4	
-	txa
-	sta		($01),y
-
-	tya
-	clc
-	adc		#$16
-	tay
-	
-	inx
-	cpx		#$18
-	bne		.loop4	
-	
-	
-	
-	rts
-	
-	
-	
-	
-	
-	
-	
-
-
-
-drawStep	 SUBROUTINE		; can shorten by 4x if, each time 6 codes are printed, I change the column, load y with 0 and branch back to loop
-	
-	lda		ram_00
-	sta		$01
-
-	ldx		#$20			; start with screen code 32
-	ldy		#$00			; start at screen memory location 1ee4 + 0
-.loop1	
-	txa
-	sta		($01),y			; store screen codes in screen memory, offset by y
-
-	tya
-	clc
-	adc		#$16			; add 22 to move down one cell in screen memory since each row is 22 cells
-	tay
-	
-	inx
-	cpx		#$26			; print first 6 screen codes from top to bottom
+	inx						; note, ram starts at $1B00 so $1B03 is ram_03
+	cpx		$1B03			; print 6 screen codes from top to bottom for current column (fighter step codes are from 32(x20) - 56(x38)) 
 	bne		.loop1
 	
 	
-	lda		ram_00
+	
+	ldx		ram_15			; load lower byte of the address in screen memory for the current cell being printed
+	inx						; add 1 to move on to printing the next column
+	stx		ram_15			; store it in ram for next time
+	stx		$01				; store in zero page for indirect indexed addressing
+	
+	lda		ram_16			; load current character code offset
 	clc
-	adc		#$01
-	sta		$01
+	adc		#$06			; add 6 for printing the next 6 codes (6 codes per column)
+	cmp		#$18			; need to print 24 character codes in total for the fighter (x18 = 24)
+	beq		.return			; if equal, we are done
 
-	ldx		#$26			; column 2 starts with screen code 38
+	
+	
+	ldx		ram_02			; otherwise, reset x and y for printing the next column
 	ldy		#$00
-.loop2	
-	txa
-	sta		($01),y			; 1ee5 is 1 cell to the right of 1ee4 (one column to the right)
-
-	tya
-	clc
-	adc		#$16
-	tay
-	
-	inx
-	cpx		#$2C
-	bne		.loop2
+	sta		ram_16			; store the current character code in ram
+	jmp		.loop1
 	
 	
-
-	lda		ram_00
-	clc
-	adc		#$02
-	sta		$01
-
-	ldx		#$2C
-	ldy		#$00
-.loop3	
-	txa
-	sta		($01),y
-
-	tya
-	clc
-	adc		#$16
-	tay
-	
-	inx
-	cpx		#$32
-	bne		.loop3
-
-	
-
-	lda		ram_00
-	clc
-	adc		#$03
-	sta		$01
-
-	ldx		#$32
-	ldy		#$00
-.loop4	
-	txa
-	sta		($01),y
-
-	tya
-	clc
-	adc		#$16
-	tay
-	
-	inx
-	cpx		#$38
-	bne		.loop4
-	
-	
+.return	
 	rts	
 	
 	
@@ -639,32 +377,32 @@ drawStep	 SUBROUTINE		; can shorten by 4x if, each time 6 codes are printed, I c
 
 	
 	
-clearFighter	 SUBROUTINE		
+clearFighter	 SUBROUTINE		; draws blank spaces over the fighter's leftmost and rightmost columns	
 	
 	lda		ram_00
 	sta		$01
 
-	ldx		#$20			; use blank spaces to clear character
-	ldy		#$00			; start at screen memory location 1ee4 + 0
+	ldx		#$00				; use blank spaces to clear character
+	ldy		#$00			
 .loop1	
 	txa
-	sta		($01),y			; store screen codes in screen memory, offset by y
+	sta		($01),y				; store screen codes in screen memory where character currently resides, offset by y = {0, 22, 44, ... 132} for successive columns 
 
 	tya
 	clc
-	adc		#$16			; add 22 to move down one cell in screen memory since each row is 22 cells
+	adc		#$16				; add 22 to move down one cell in screen memory since each row is 22 cells
 	tay
 	
-	cpy		#$84			; print first 6 screen codes from top to bottom
+	cpy		#$84				; print first 6 screen codes from top to bottom
 	bne		.loop1
 
 
-	lda		ram_00
+	lda		ram_00				; move to 4th column of character in screen memory and repeat
 	clc
 	adc		#$03
 	sta		$01
 
-	ldx		#$20
+	ldx		#$00
 	ldy		#$00
 .loop4	
 	txa
@@ -688,8 +426,10 @@ clearFighter	 SUBROUTINE
 	
 	
 	
-DATA	
+	SEG.U	RAM				; force our RAM to start at $1B00 - 256 bytes before fighter graphics
 
+	ORG		$1B00
+	
 ram_00		.byte	$00
 ram_01		.byte	$00
 ram_02		.byte	$00
@@ -698,110 +438,47 @@ ram_04		.byte	$00
 ram_05		.byte	$00
 ram_06		.byte	$00
 ram_07		.byte	$00
+ram_08		.byte	$00
+ram_09		.byte	$00
+ram_10		.byte	$00
+ram_11		.byte	$00
+ram_12		.byte	$00
+ram_13		.byte	$00
+ram_14		.byte	$00
+ram_15		.byte	$00
+ram_16		.byte	$00
+ram_17		.byte	$00
+ram_18		.byte	$00
+ram_19		.byte	$00
+ram_20		.byte	$00
+ram_21		.byte	$00
+ram_22		.byte	$00
+ram_23		.byte	$00
 
+	SEG
 	
 	
-fighter
-	.byte	$00, $02, $80, $00
-	.byte	$00, $05, $50, $00
-	.byte	$00, $16, $a0, $00
-	.byte	$00, $0a, $20, $00
-	.byte	$00, $0a, $a0, $00
-	.byte	$00, $0a, $a0, $00
-	.byte	$00, $02, $a0, $00
-	.byte	$00, $02, $80, $00
-	.byte	$00, $02, $80, $00
-	.byte	$00, $32, $bc, $00
-	.byte	$00, $3e, $b7, $0c
-	.byte	$00, $3e, $ff, $0c
-	.byte	$00, $3f, $fb, $3c
-	.byte	$00, $7f, $fb, $f0
-	.byte	$00, $7f, $fb, $f0
-	.byte	$00, $7b, $e8, $c0
-	.byte	$00, $7c, $c8, $00
-	.byte	$00, $7f, $08, $00
-	.byte	$00, $7f, $c8, $00
-	.byte	$00, $1f, $f8, $00
-	.byte	$00, $18, $f8, $00
-	.byte	$00, $1e, $38, $00
-	.byte	$00, $0f, $f0, $00
-	.byte	$00, $0f, $f0, $00
-	.byte	$00, $0c, $30, $00
-	.byte	$00, $06, $60, $00
-	.byte	$00, $07, $e0, $00
-	.byte	$00, $0f, $f0, $00
-	.byte	$00, $0f, $f8, $00
-	.byte	$00, $0e, $78, $00
-	.byte	$00, $1e, $3c, $00
-	.byte	$00, $1e, $1c, $00
-	.byte	$00, $1e, $1e, $00
-	.byte	$00, $3e, $1e, $00
-	.byte	$00, $3c, $0f, $00
-	.byte	$00, $3c, $07, $80
-	.byte	$00, $78, $07, $80
-	.byte	$00, $f8, $03, $c0
-	.byte	$00, $f8, $03, $c0
-	.byte	$01, $f0, $03, $c0
-	.byte	$03, $c0, $03, $80
-	.byte	$07, $c0, $03, $80
-	.byte	$0f, $00, $03, $80
-	.byte	$0e, $00, $03, $80
-	.byte	$0e, $00, $03, $80
-	.byte	$06, $00, $01, $c0
-	.byte	$07, $00, $01, $e0
-	.byte	$07, $c0, $01, $f8
+	
+	
+	ORG		$1C00		; forces our fighter graphics to begin where Vic is obtaining its character information from (character code 0 refers to the first 8 bytes starting at 1C00, and so on)
 
-fighterStep
-	.byte	$00, $02, $80, $00
-	.byte	$00, $05, $50, $00
-	.byte	$00, $16, $a0, $00
-	.byte	$00, $0a, $20, $00
-	.byte	$00, $0a, $a0, $00
-	.byte	$00, $0a, $a0, $00
-	.byte	$00, $02, $a0, $00
-	.byte	$00, $02, $80, $00
-	.byte	$00, $02, $80, $00
-	.byte	$00, $32, $bc, $00
-	.byte	$00, $3e, $b7, $0c
-	.byte	$00, $3e, $ff, $0c
-	.byte	$00, $3f, $fb, $3c
-	.byte	$00, $7f, $fb, $f0
-	.byte	$00, $7f, $fb, $f0
-	.byte	$00, $7b, $e8, $c0
-	.byte	$00, $7c, $c8, $00
-	.byte	$00, $7f, $08, $00
-	.byte	$00, $7f, $c8, $00
-	.byte	$00, $1f, $f8, $00
-	.byte	$00, $18, $f8, $00
-	.byte	$00, $1e, $38, $00
-	.byte	$00, $0f, $f0, $00
-	.byte	$00, $0f, $f0, $00
-	.byte	$00, $0c, $30, $00
-	.byte	$00, $06, $60, $00
-	.byte	$00, $07, $e0, $00
-	.byte	$00, $0f, $f0, $00
-	.byte	$00, $0f, $f0, $00
-	.byte	$00, $0e, $f0, $00
-	.byte	$00, $1e, $f0, $00
-	.byte	$00, $1e, $70, $00
-	.byte	$00, $1e, $70, $00
-	.byte	$00, $3e, $70, $00
-	.byte	$00, $3c, $70, $00
-	.byte	$00, $3c, $70, $00
-	.byte	$00, $38, $78, $00
-	.byte	$00, $38, $78, $00
-	.byte	$00, $78, $78, $00
-	.byte	$00, $70, $f8, $00
-	.byte	$00, $70, $f0, $00
-	.byte	$00, $70, $f0, $00
-	.byte	$00, $71, $e0, $00
-	.byte	$00, $f1, $e0, $00
-	.byte	$00, $f1, $e0, $00
-	.byte	$00, $61, $c0, $00
-	.byte	$00, $71, $e0, $00
-	.byte	$00, $7d, $f8, $00
+fighter					; 192 bytes (character codes 1 - 23)
+
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $01, $03, $07, $0f, $0e, $0e, $06, $07, $07
+	.byte	$02, $05, $16, $0a, $0a, $0a, $02, $02, $02, $32, $3e, $3e, $3f, $7f, $7f, $7b, $7c, $7f, $7f, $1f, $18, $1e, $0f, $0f, $0c, $06, $07, $0f, $0f, $0e, $1e, $1e, $1e, $3e, $3c, $3c, $78, $f8, $f8, $f0, $c0, $c0, $00, $00, $00, $00, $00, $c0 
+	.byte	$80, $50, $a0, $20, $a0, $a0, $a0, $80, $80, $bc, $b7, $ff, $fb, $fb, $fb, $e8, $c8, $08, $c8, $f8, $f8, $38, $f0, $f0, $30, $60, $e0, $f0, $f8, $78, $3c, $1c, $1e, $1e, $0f, $07, $07, $03, $03, $03, $03, $03, $03, $03, $03, $01, $01, $01 
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $0c, $0c, $3c, $f0, $f0, $c0, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $80, $80, $c0, $c0, $c0, $80, $80, $80, $80, $80, $c0, $e0, $f8
+
+
+fighterStep					; 192 bytes (character codes 24 - 47)
+
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+	.byte	$02, $05, $16, $0a, $0a, $0a, $02, $02, $02, $32, $3e, $3e, $3f, $7f, $7f, $7b, $7c, $7f, $7f, $1f, $18, $1e, $0f, $0f, $0c, $06, $07, $0f, $0f, $0e, $1e, $1e, $1e, $3e, $3c, $3c, $38, $38, $78, $70, $70, $70, $71, $f1, $f1, $61, $71, $7d
+	.byte	$80, $50, $a0, $20, $a0, $a0, $a0, $80, $80, $bc, $b7, $ff, $fb, $fb, $fb, $e8, $c8, $08, $c8, $f8, $f8, $38, $f0, $f0, $30, $60, $e0, $f0, $f0, $f0, $f0, $70, $70, $70, $70, $70, $78, $78, $78, $f8, $f0, $f0, $e0, $e0, $e0, $c0, $e0, $f8
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $0c, $0c, $3c, $f0, $f0, $c0, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	
 
+	
 
 smileSmoking	
 	.byte	$3c
