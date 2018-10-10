@@ -41,7 +41,8 @@ Test 6:     SOUND
 
 
 Test 7:     Background colour changing effect
-    - in this test, we wanted to make a end game effect on the screen to look like static. Made a loop that quickly switches the background and border colour between different colours.
+    - in this test, we wanted to make a end game effect on the screen to look like static. 
+      Made a loop that quickly switches the background and border colour between different colours.
 
 
 Test 8:     move character  ... dabin i am struggling to say what to do
