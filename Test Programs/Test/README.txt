@@ -28,7 +28,7 @@ Test 4:     Color Test
     
 
 
-Test 5:     Custome Character
+Test 5:     Custom Character
 
     - in this program we change the VIC location to search for characters. 
       It also has some extra color change, but we can see the character is custome
@@ -49,9 +49,9 @@ Test 8:     move character  ... dabin i am struggling to say what to do
       on the key press, the is a different behaviour
 
 
-Test 9:    Customer Large Animation 
+Test 9:    Custom Large Animation 
 
 
 Test 10:    interrupts ...DABIN YOU DID this one explain it please
 
-Test 11:    Customer Char with animation
+Test 11:    Custom Char with animation
