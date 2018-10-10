@@ -199,7 +199,6 @@ wait				SUBROUTINE
 ; draws empty space characters over the entire screen	
 clearScreen		SUBROUTINE
 	lda		#$00				; first code is upper left cell in fighter step (a blank cell)
-
 	ldx		#$00
 .loop1
 	sta		$1e00,x
