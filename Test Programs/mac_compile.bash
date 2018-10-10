@@ -8,7 +8,7 @@ if [ ! -e $1 ]; then
 else 
     ./dasm.Darwin.x86 $1 -o${1%.*}.out
     echo " "
-    echo "File Accepted: ${1%.*}.out in Directory "
+    echo "COMPLETED: ${1%.*}.out in Directory "
     echo "---"
 
 fi 
