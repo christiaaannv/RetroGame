@@ -27,6 +27,21 @@ main
 	ldx		#$08
 	stx		$900f		; set background color and border color to black -- see appendices for codes and memory locations to store in 
 
+	
+	jsr		clearScreen
+
+
+	
+	ldx		#$0
+loop    
+	lda		instructions,x
+	jsr		chrout   
+	inx
+	cpx		#$25
+	bne		loop
+	
+	
+	
 	; store addresses to screen memory blocks in zero page (upper half of screen 0x1E16)
 	ldx		#$16
 	stx		$01
@@ -201,6 +216,34 @@ eraseBall SUBROUTINE
 	
 	
 	
+	
+	
+; draws empty space characters over the entire screen	
+clearScreen		SUBROUTINE
+	lda		#$20				; first code is upper left cell in fighter step (a blank cell)
+
+	ldx		#$00
+.loop1
+	sta		$1e00,x
+	inx
+	cpx		#$FF
+	bne		.loop1
+
+
+	ldx		#$00
+.loop2
+	sta		$1eFF,x
+	inx
+	cpx		#$FF
+	bne		.loop2
+	
+	rts
+	
+	
+	
+	
+	
+	
 DATA
 
 ram_00
@@ -295,42 +338,9 @@ fighter
 	.byte	$07, $00, $01, $c0
 	.byte	$07, $80, $01, $e0
 
-	
-	
-fighter1
-	.byte	$18
-	.byte	$24
-	.byte	$42
-	.byte	$7e
-	.byte	$42
-	.byte	$42
-	.byte	$42
-	.byte	$00
 
-smileSmoking	
-	.byte	$3c
-	.byte	$42
-	.byte	$a5
-	.byte	$81
-	.byte	$a5
-	.byte	$99
-	.byte	$46
-	.byte	$3d
-
-
-fullCell
-	.byte	$ee
-	.byte	$ee
-	.byte	$ee
-	.byte	$ee
-	.byte	$ee
-	.byte	$ee
-	.byte	$ee
-	.byte	$ee
-
-pacman
-	.byte	$3C, $7E, $FF, $FF, $FF, $FF, $7E, $3C 
 	
-	
+instructions
+	.byte		"USE THE ARROW KEYS TO MOVE THE BALL"
 
 	

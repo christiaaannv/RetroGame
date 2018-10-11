@@ -53,6 +53,7 @@ main
 
 	
 	
+	
 	; load the address of a custom interrupt routine into Vic memory where the IRQ vector resides
 	lda		#$00
 	sta		IRQLOW
@@ -73,7 +74,6 @@ main
 	lda		#$00
 	sta		$1E00		; chow character code 0 at the top left of the screen
 	
-	
 	lda		ACR
 	and		#$DF		; set timer2 to operate in 1 shot mode		
 	sta		ACR
@@ -82,9 +82,43 @@ main
 	sta		T2LOW		; store low order byte of timer	countdown	
 	lda		#$FF
 	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
-		
+
+
+	ldx		#$0
+loop    
+	lda		info,x
+	jsr		chrout   
+	inx
+	cpx		#$6d
+	bne		loop
+
 
 	rts					; return to BASIC prompt
+
+
+
+
+
+
+
+wait SUBROUTINE
+	lda		ACR
+	and		#$DF		; set timer to operate in 1 shot mode		
+	sta		ACR
+	
+	lda		#$FF
+	sta		T2LOW		; store low order byte of timer		
+	lda		#$FF
+	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
+		
+.loop 
+    lda		T2HIGH
+	and		#$FF
+    bne		.loop
+
+	rts
+
+
 
 
 	
@@ -108,16 +142,23 @@ irqHandler
 	lda		#$FF
 	sta		T2HIGH		; store high order byte of timer (also starts the countdown AND CLEARS INTERRUPT FLAG)
 	
+
+	
 notTimer	
 	jmp		$EABF		; jump to the kernel's irq handler
 	
 	
 	
+
+
+
+
 	
 	
 	
 	
-	
+info
+	.byte	"TIMER BASED INTERRUPTS ARE USED TO CHANGE THE UPPER LEFT CHARACTER - THE VIC CAN STILL BE USED SIMULTANEOUSLY"
 	
 	
 

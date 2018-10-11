@@ -42,10 +42,10 @@ infinite
     jsr     backgroundColor     ;... change backgroundColor
     jsr     updateScreen        ;... change characters, and their prospect colors 
 
-                                ;... slowdown the program 
-                                ;... so its noticeble by the user 
+                                
 wait10
-    jsr     wait 
+    jsr     wait				;... slowdown the program 
+								;... so its not overwhelming 
 
 
     lda     ram_04
