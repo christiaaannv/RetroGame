@@ -1,53 +1,53 @@
 1.	Design character and opponent animation frames
-  a.	I found a method that seems to work well but is tedious so a better solution would be +
-    i.	Look up “karate kick” or “karate punch silhouette” on google images
-    ii.	Pick a stance to model the animation frame after
-    iii.	Use a pixel art program, such as “PixilArt” which runs in browser, to draw a custom version of that stance.
-    iv.	Make sure the pixel art version you create is 48 pixels high by 32 pixels wide.
-    v.	 Open a text file and map the pixel art version to binary code ie;
-      1.	00000000 00001110 00011000 00000000
-      2.	00000000 00001111 00001100 00000000
-      3.	……………………………………………………………….
-      4.	Note that there should be 48 rows and 4 columns  (48 bits x 32 bits)
-    vi.	Use the helper function in our github called “drawBinary” to print your current binary file to screen with all 1s                 replaced with ‘*’ and all 0s replaced with a space to get a better visual representation since 1s and 0s can become unintelligible.
-      1.	It takes a command line argument which would be the text file you’re creating. 
-    vii.	Use the helper function in our github called “binaryToHexColumnwise” to convert this file of bits to hexadecimal notation for use in the assembly program.
-      1.	It takes a command line argument which would be the text file you created.
+	a.	I found a method that seems to work well but is tedious so a better solution would be +
+		i.		Look up “karate kick” or “karate punch silhouette” on google images
+		ii.		Pick a stance to model the animation frame after
+		iii.	Use a pixel art program, such as “PixilArt” which runs in browser, to draw a custom version of that stance.
+		iv.		Make sure the pixel art version you create is 48 pixels high by 32 pixels wide.
+		v.		Open a text file and map the pixel art version to binary code ie;
+			1.	00000000 00001110 00011000 00000000
+			2.	00000000 00001111 00001100 00000000
+			3.	……………………………………………………………….
+			4.	Note that there should be 48 rows and 4 columns  (48 bits x 32 bits)
+		vi.	Use the helper function in our github called “drawBinary” to print your current binary file to screen with all 1s replaced with ‘*’ and all 0s replaced with a space to get a better visual representation since 1s and 0s can become unintelligible.
+			1.	It takes a command line argument which would be the text file you’re creating. 
+		vii.	Use the helper function in our github called “binaryToHexColumnwise” to convert this file of bits to hexadecimal notation for use in the assembly program.
+			1.	It takes a command line argument which would be the text file you created.
 
 2.	Design intro screen art
-  a.	Street Fighter 5 custom text
-  b.	Strips of color above and below the text that flash or have some effect?
+	a.	Street Fighter 5 custom text
+	b.	Strips of color above and below the text that flash or have some effect?
 
 3.	Design a start menu/intro screen menu
-  a.	Menu items
-    i.	Start game
-    ii.	Quit
-    iii.	Selector Icon
-      1.	To indicate which option they are currently on
-    iv.	Or alternatively, we don’t use a menu and just print “press [some key] to start”
+	a.	Menu items
+		i.	Start game
+		ii.	Quit
+		iii.	Selector Icon
+			1.	To indicate which option they are currently on
+		iv.	Or alternatively, we don’t use a menu and just print “press [some key] to start”
 
 4.	Develop an organized RAM configuration that we will use for the implementation
-  a.	ram_00		character x position
-  b.	ram_01		character y position
-  c.	ram_02		opponent x position
-  d.	ram_03		….
-  e.	Etc.
-  f.	This will serve as a set of rules that determine what RAM we use for implementation to make sure we don’t get disorganized and overwrite RAM that is storing something important
-  g.	It is probably a good idea to keep related information grouped together in “chunks” with two or more unused RAM locations after each chunk in case we forget something that we want to add in later.
-    i.	It also isn’t a great idea to have too much unused RAM since memory usage is a marking criteria so it would be even better if we could brainstorm super hard on this to make as concise a mapping as we can for all variables we will need then just use RAM after this if we forget something
+	a.	ram_00		character x position
+	b.	ram_01		character y position
+	c.	ram_02		opponent x position
+	d.	ram_03		….
+	e.	Etc.
+	f.	This will serve as a set of rules that determine what RAM we use for implementation to make sure we don’t get disorganized and overwrite RAM that is storing something important
+	g.	It is probably a good idea to keep related information grouped together in “chunks” with two or more unused RAM locations after each chunk in case we forget something that we want to add in later.
+	i.	It also isn’t a great idea to have too much unused RAM since memory usage is a marking criteria so it would be even better if we could brainstorm super hard on this to make as concise a mapping as we can for all variables we will need then just use RAM after this if we forget something
 
 5.	Figure out how to generate random numbers (for opponent AI)
 
 6.	Develop opponent AI
-  a.	Use random number generation to determine when the opponent kicks, punches, moves, and how often he blocks incoming strikes.
-  b.	If he is being struck, generate a number between 0 and 100 and if it’s greater than 60, block – alter for difficulty levels
-  c.	If he isn’t being struck, generate a number similarly that determines if he moves or strikes
+	a.	Use random number generation to determine when the opponent kicks, punches, moves, and how often he blocks incoming strikes.
+	b.	If he is being struck, generate a number between 0 and 100 and if it’s greater than 60, block – alter for difficulty levels
+	c.	If he isn’t being struck, generate a number similarly that determines if he moves or strikes
 
 7.	Design the HUD 
-  a.	Character and opponent health bars
-  b.	Timer?
-  c.	Score
-  d.	These are important variables to map to RAM in point 4.
+	a.	Character and opponent health bars
+	b.	Timer?
+	c.	Score
+	d.	These are important variables to map to RAM in point 4.
 
 
 
