@@ -4,7 +4,7 @@
     ii.	Pick a stance to model the animation frame after
     iii.	Use a pixel art program, such as “PixilArt” which runs in browser, to draw a custom version of that stance.
     iv.	Make sure the pixel art version you create is 48 pixels high by 32 pixels wide.
-    v.	Open a text file and map the pixel art version to binary code ie;
+    v.	 Open a text file and map the pixel art version to binary code ie;
       1.	00000000 00001110 00011000 00000000
       2.	00000000 00001111 00001100 00000000
       3.	……………………………………………………………….
