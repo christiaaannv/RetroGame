@@ -25,6 +25,7 @@
 		iii.	Selector Icon
 			1.	To indicate which option they are currently on
 		iv.	Or alternatively, we don’t use a menu and just print “press [some key] to start”
+		v.	Add music/sound effects to the start menu
 
 4.	Develop an organized RAM configuration that we will use for the implementation
 	a.	ram_00		character x position
@@ -40,6 +41,7 @@
 
 6.	Develop opponent AI
 	a.	Use random number generation to determine when the opponent kicks, punches, moves, and how often he blocks incoming strikes.
+	2a. 	User a timer to determine when opponent will strike or block. ie. Opponent will attack every 2 seconds or if time is a multiple of 3 and 5. 
 	b.	If he is being struck, generate a number between 0 and 100 and if it’s greater than 60, block – alter for difficulty levels
 	c.	If he isn’t being struck, generate a number similarly that determines if he moves or strikes
 
