@@ -1,0 +1,20 @@
+Brainstorm a list of things that we will need to store in RAM so that we can plan out what we need and where we can store them.
+
+Required variables:
+    1. Timer
+    2. Player 1 health
+    3. Player 2 health
+    4. Player 1 state (attack, block, neutral) - extra space for extra moves (ie. jumping, throwing)
+    5. Player 2 state (attack, block, neutral) - extra space for extra moves (ie. jumping, throwing)
+    6. Player 1 score
+    7. Player 2 score (?)
+    8. Level progression/ Round number
+    9. Player 1 x position
+    10. Player 1 y position
+    11. Player 1 x position
+    12. Player 1 y position
+    13. RNG value for AI
+    14. Difficulty setting
+    15. Number of lives
+    16. Background level design to load
+    
