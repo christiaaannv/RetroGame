@@ -27,16 +27,7 @@
 		iv.	Or alternatively, we don’t use a menu and just print “press [some key] to start”
 		v.	Add music/sound effects to the start menu
 
-4.	Develop an organized RAM configuration that we will use for the implementation
-	a.	ram_00		character x position
-	b.	ram_01		character y position
-	c.	ram_02		opponent x position
-	d.	ram_03		….
-	e.	Etc.
-	f.	This will serve as a set of rules that determine what RAM we use for implementation to make sure we don’t get disorganized and overwrite RAM that is storing something important
-	g.	It is probably a good idea to keep related information grouped together in “chunks” with two or more unused RAM locations after each chunk in case we forget something that we want to add in later.
-	i.	It also isn’t a great idea to have too much unused RAM since memory usage is a marking criteria so it would be even better if we could brainstorm super hard on this to make as concise a mapping as we can for all variables we will need then just use RAM after this if we forget something
-
+		
 5.	Figure out how to generate random numbers (for opponent AI)
 
 6.	Develop opponent AI
@@ -56,3 +47,4 @@
 It would probably be a good idea to have a punch and a kick animation for the opponent, develop some very basic opponent AI, develop a preliminary HUD, and map the RAM locations as precisely and thoroughly as possible for the first project update and worry about the start screen, additional animations,  AI tweaking, a more advanced HUD and stuff like that for the final product.
 
 
+	
