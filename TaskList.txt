@@ -44,7 +44,11 @@
 
 
 
-It would probably be a good idea to have a punch and a kick animation for the opponent, develop some very basic opponent AI, develop a preliminary HUD, and map the RAM locations as precisely and thoroughly as possible for the first project update and worry about the start screen, additional animations,  AI tweaking, a more advanced HUD and stuff like that for the final product.
+It would probably be a good idea to have a punch, kick, block, and struck animation for the opponent and our character, develop some very basic opponent AI, develop a preliminary HUD, and map the RAM locations as precisely and thoroughly as possible for the first project update and worry about the start screen, additional animations,  AI tweaking, a more advanced HUD and stuff like that for the final product.
+
+For opponent graphics, we may be able to just draw the character in reverse for now as these images take up a lot of space.
+
+Note that any punch or kick frames should be such that the character's fist or foot is extended to the very edge of the picture so that it will look like he actually hits the opponent
 
 
 	
