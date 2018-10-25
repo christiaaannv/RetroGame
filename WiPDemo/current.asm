@@ -244,6 +244,7 @@ doUserAction		SUBROUTINE
 
 	
 .doKickAnimation
+
 	lda		#$30			; draw fighter kick graphic starting from character code 48 (x30)
 	sta		drawCode
 	lda		characterXPos
@@ -291,7 +292,9 @@ getOpponentNextAction		SUBROUTINE
 	lda		opponentWasStruck			; If opponent was struck last frame, weight his action towards moving right
 	cmp		#0
 	beq		.wasntStruckLastFrame
-
+	lda		#0							; reset opponentWasStruck
+	sta		opponentWasStruck
+	
 	lda		opponentXPos
 	cmp		#$88
 	beq		.wasntStruckLastFrame		; If at right edge of screen, act as if wasn't struck
@@ -308,33 +311,43 @@ getOpponentNextAction		SUBROUTINE
 	cmp		#0
 	beq		.notBeingStruck
 
-.newRand0
-	lda		#0
+	lda		#0							; Reset charIsStriking
 	sta		charIsStriking
+
+	lda		opponentXPos				; Check if user is even in range
+	sec
+	sbc		characterXPos				
+	cmp		#5
+	bpl		.notWithinRange				; If so, do random roll for block
+
+.newRand0
 	jsr		rand
-	cmp		#29
+	cmp		#28
 	beq		.newRand0		
-	bpl		.notBeingStruck				; If random block fails, act as if opponent is not being struck
+	bpl		.failBlock					; If random block fails, store state vars and act as if not being struck
 	
 	lda		#3
 	sta		opponentAction
-
 	rts
+
 	
+.failBlock	
+	lda		#1
+	sta		opponentWasStruck
 	
 .notBeingStruck
 	lda		opponentXPos
 	sec
-	sbc		characterXPos				; If within striking range, high chance to strike
+	sbc		characterXPos				; If within striking range, random chance to strike
 	cmp		#5
 	bpl		.notWithinRange
 
 	jsr		rand
 	cmp		#20
-	bmi		.notWithinRange				; If random strike fails, act as if not within striking range
+	bmi		.notWithinRange				; If random strike chance fails, act as if not within striking range
 
 .newRand1
-	jsr		rand
+	jsr		rand						; Randomize punch/kick
 	cmp		#29
 	beq		.newRand1
 	bpl		.kick
@@ -348,6 +361,7 @@ getOpponentNextAction		SUBROUTINE
 	sta		opponentAction
 	rts
 
+	
 .notWithinRange
 	lda		opponentXPos
 	sec
@@ -356,7 +370,7 @@ getOpponentNextAction		SUBROUTINE
 	bpl		.moveLeft
 	
 
-.moveRight
+.moveRight							
 	lda		#3
 	sta		opponentDir
 	lda		#4
