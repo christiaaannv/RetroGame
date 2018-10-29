@@ -755,16 +755,12 @@ fillScreen		SUBROUTINE
 	
 	
 	
-	
-	
-	
-	
 getInput		SUBROUTINE		; loads a with..
-								; 0 -> up
-								; 1 -> down
-								; 2	-> left
-								; 3 -> right
-								; 4 -> space
+								; 0 -> down (punch)
+								; 1 -> s (block)
+								; 2	-> a (left)
+								; 3 -> d (right)
+								; 4 -> right (kick)
 								 
 								; registers ruined..
 								; a
@@ -772,40 +768,44 @@ getInput		SUBROUTINE		; loads a with..
 	
 	jsr		GETIN				; read from input buffer
 	cmp		#0					; check if buffer was empty
-	bne		.checkForUpKey		; if so, process input
+	bne		.checkForDownKey	; if so, process input
 	jmp		.return
+
 	
-.checkForUpKey
-	cmp		#145				; ascii code for up key	
-	bne		.checkForDownKey
-		
-	lda		#0
-	rts
-		
 .checkForDownKey
 	cmp		#17					; ascii code for down key	
-	bne		.checkForLeftKey
+	bne		.checkForSKey
 	
+	lda		#0
+	rts
+
+	
+.checkForSKey
+	cmp		#83					; ascii code for S key	
+	bne		.checkForAKey
+		
 	lda		#1
 	rts
+		
 	
-.checkForLeftKey
-	cmp		#157				; ascii code for left key			
-	bne		.checkForRightKey
+.checkForAKey
+	cmp		#65					; ascii code for A key			
+	bne		.checkForDKey
 
 	lda		#2
 	rts
+
 	
-.checkForRightKey
-	cmp		#29					; ascii code for right key			
-	bne		.checkForSpaceKey				
+.checkForDKey
+	cmp		#68					; ascii code for D key			
+	bne		.checkForRightKey				
 
 	lda		#3
 	rts
 
 	
-.checkForSpaceKey
-	cmp		#32
+.checkForRightKey
+	cmp		#29
 	bne		.return
 	
 	lda		#4
