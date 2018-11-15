@@ -2,11 +2,11 @@
 
 	processor 6502
 
-	org $1001
+	org $0401
 
 	dc.w	end
 	dc.w	1234
-	dc.b	$9e, "4110", 0, 0
+	dc.b	$9e, "1038", 0, 0
 
 end
 	dc.w	0
