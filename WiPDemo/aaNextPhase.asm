@@ -55,10 +55,14 @@ IRQHIGH					.equ	$0315
 P1LIFEBARSTART			.equ	#7725	
 P2LIFEBARSTART			.equ	#7738
 
+P1LIFEBARSTARTCOLOR		.equ	#38445
+P2LIFEBARSTARTCOLOR		.equ	#38458
 
-LIFEBARCODELEFT			.equ	#169
-LIFEBARCODEMIDDLE		.equ	#171
-LIFEBARCODERIGHT		.equ	#173
+
+DEBUGSCR1				.equ	$1E00
+DEBUGSCR2				.equ	$1E02
+DEBUGSCR3				.equ	$1E04
+DEBUGSCR4				.equ	$1E06
 
 
 main
@@ -93,9 +97,6 @@ main
 	lda		#$FE					; load code for telling vic chip where to look for character data (this code is hardwired and tells it to look at 6144)
 	sta		$9005					; store in Vic chip
 	
-	ldx		#1
-	jsr		fillScreen
-
 
 	
 	; store addresses to screen memory blocks in zero page (x1f7A is 6 rows from the bottom of the screen where fighter starts)
@@ -121,11 +122,9 @@ main
 
 	; store where top left of opponent is in screen memory into ram locations (basically represents x,y coordinates)
 	ldx		#$84
-	stx		opponentXPos
+	stx		p2XPos
 	ldx		#$1f
-	stx		opponentYPos
-
-	
+	stx		p2YPos
 
 	
 	lda		#$51		; D1 with high bit off
@@ -142,10 +141,16 @@ main
 	sta		ram_03
 
 	
-	; start both players with full health
-	lda		#7
-	sta		p1LifeBarPos
-	sta		opponentLifeBarPos
+
+
+	ldx		#1
+	jsr		fillScreen
+
+	jsr		initColors
+
+
+	lda		#16
+	sta		currentLevelTimeOut
 	
 	
 mainLoop	SUBROUTINE
@@ -155,18 +160,186 @@ mainLoop	SUBROUTINE
 	sta		userPress
 	jsr		doUserAction
 
+	jsr		getAINextAction
+	jsr		doAIAction
 
-	jsr		getOpponentNextAction
-	jsr		doOpponentAction
+	jsr		checkP1Struck
+	jsr		checkP2Struck
 
+	jsr		updateHUD
 	jsr		drawLifebars
+	
 
 	jsr		clearInputBufferB
-
 	
 	jmp		mainLoop
 
 
+	
+
+
+	
+	
+checkP1Struck	SUBROUTINE
+
+	lda		p2IsStriking		; if p2 is not striking, don't update the p2WasStruck state
+	beq		.end
+
+	ldx		#0					
+
+	lda		p2XPos		
+	sec
+	sbc		p1XPos
+	cmp		#5					; check if within striking range
+	bpl		.setStruckState		; if not, set p1WasStruck to 0 - false
+	
+	
+.wasP1Struck	
+	lda		p1Action			; check if p1 was blocking during the strike
+	cmp		#3
+	beq		.setStruckState
+	ldx		#1
+
+.setStruckState
+	stx		p1WasStruck
+	jmp		.end
+
+	
+
+	lda		p2IsStriking
+	beq		.end
+	
+	
+	lda		p2XPos
+	sec
+	sbc		p1XPos
+	cmp		#5					; check if within striking range
+	bpl		.end
+
+	lda		p1IsBlocking
+	bne		.end
+
+	lda		#1
+	sta		p1WasStruck
+	
+
+.end
+	rts
+
+	
+	
+	
+	
+	
+	
+	
+	
+; Continually sets p2WasStruck each iteration of the game loop
+; p2WasStruck is consumed when the p1 strike animation ends, so if p2 blocked
+; or moved during the animation, they will avoid the strike from p1
+checkP2Struck	SUBROUTINE
+
+	lda		p1IsStriking		; if p1 is not striking, don't update the p2WasStruck state
+	beq		.end
+
+	ldx		#0					
+
+	lda		p2XPos		
+	sec
+	sbc		p1XPos
+	cmp		#5					; check if within striking range
+	bpl		.setStruckState
+	
+	
+.wasP2Struck	
+	lda		p2Action			; check if p2 was blocking during the strike
+	cmp		#3
+	beq		.setStruckState
+	ldx		#1
+
+.setStruckState
+	stx		p2WasStruck
+
+
+.end
+	rts	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+updateHUD		SUBROUTINE
+
+
+.updateP1HealthBar	
+	lda		p1WasStruck
+	beq		.updateP2HealthBar
+	
+	ldy		#6
+.loop1
+	
+	ldx		p1LifeBarTicks,y
+	cpx		#1
+	bne		.skip1
+	
+	lda		#0
+	sta		p1LifeBarTicks,y
+	sta		p1WasStruck
+	
+	lda		emptySpaceCode
+	sta		P1LIFEBARSTART,y
+	
+	jmp		.updateP2HealthBar
+	
+.skip1	
+	dey
+	bpl		.loop1
+
+	
+	
+.updateP2HealthBar	
+	lda		p1Action				; when the animation timer resets p1Action,...
+	bne		.end
+	lda		p2WasStruck				; ...update p2 health if p2Was struck.
+	beq		.end
+
+	
+	ldy		#6
+.loop2
+	
+	ldx		p2LifeBarTicks,y
+	cpx		#1
+	bne		.skip2
+	
+	lda		#0
+	sta		p2LifeBarTicks,y
+	sta		p2WasStruck
+	
+	lda		emptySpaceCode
+	sta		P2LIFEBARSTART,y
+	
+	jmp		.end
+
+.skip2	
+	dey
+	bpl		.loop2
+	
+
+
+	
+.end	
+	rts
+
+
+
+	
+	
+	
 	
 	
 	
@@ -174,9 +347,27 @@ mainLoop	SUBROUTINE
 
 initColors		SUBROUTINE
 
+
+	ldy		#6
+	lda		#5						; set the life bars to green
+.loop1
+	
+	sta		P1LIFEBARSTARTCOLOR,y
+	sta		P2LIFEBARSTARTCOLOR,y
+	
+	dey
+	bpl		.loop1
+	
 	
 
 	rts
+	
+	
+	
+	
+	
+	
+	
 	
 	
 	
@@ -191,7 +382,7 @@ drawLifebars	 SUBROUTINE
 	sta		P1LIFEBARSTART			; store in screen memory
 
 	lda		#169
-	adc		opponentLifeBarTicks
+	adc		p2LifeBarTicks
 	sta		P2LIFEBARSTART
 
 	
@@ -203,7 +394,7 @@ drawLifebars	 SUBROUTINE
 	sta		P1LIFEBARSTART,y		; store in screen memory
 
 	lda		#171					; load the middle lifebar graphic code (empty version)
-	adc		opponentLifeBarTicks,y	; add the number of life ticks remaining in that section
+	adc		p2LifeBarTicks,y	; add the number of life ticks remaining in that section
 	sta		P2LIFEBARSTART,y		; store in screen memory
 	
 	iny
@@ -217,7 +408,7 @@ drawLifebars	 SUBROUTINE
 	sta		P1LIFEBARSTART,y		; store in screen memory
 					
 	lda		#173					; load the right lifebar graphic code (empty version)
-	adc		opponentLifeBarTicks,y	; add the number of life ticks remaining in that section
+	adc		p2LifeBarTicks,y	; add the number of life ticks remaining in that section
 	sta		P2LIFEBARSTART,y		; store in screen memory
 
 					
@@ -231,14 +422,25 @@ drawLifebars	 SUBROUTINE
 	
 	
 doUserAction		SUBROUTINE
+;p1Action				0 = nothing
+;						1 = kick
+;						2 = punch
+;						3 = block
+;						4 = step
+
 	
-	lda		p1Action		; If not 0, p1 is mid animation, do not process input
+	lda		p1Action		; If not 0, p1 is mid animation, do not process input (set to 0 when anim timer reaches 0)
 	beq		.drawUserDefault
 	rts
 
 
 .drawUserDefault	
-	lda		#0			; draw fighter graphic starting from p1 code 0
+	lda		#0
+	sta		p1IsBlocking
+	sta		p1IsStriking
+
+
+	lda		#0				; draw fighter graphic starting from p1 code 0
 	sta		drawCode
 	lda		p1XPos
 	sta		drawXPos
@@ -248,12 +450,9 @@ doUserAction		SUBROUTINE
 	sta		$06
 	jsr		drawFighter
 
-
-
 	
 .checkPunch
 	lda		userPress
-	cmp		#$00
 	bne		.checkBlock
 
 .doPunchAnimation
@@ -300,12 +499,14 @@ doUserAction		SUBROUTINE
 
 	jsr		drawFighter
 
-	lda		#2
+	lda		#3
 	sta		p1Action
 	lda		#16				
 	sta		p1AnimTimer
 
-	
+	lda		#1
+	sta		p1IsBlocking
+	rts		
 	
 .checkKick
 	cmp		#4
@@ -362,7 +563,7 @@ doUserAction		SUBROUTINE
 	lda		p1XPos
 	clc
 	adc		#4
-	cmp		opponentXPos	; is p1 at right edge of screen
+	cmp		p2XPos	; is p1 at right edge of screen
 	bne		.moveRight		; if so, no movement left
 	rts
 .moveRight
@@ -401,7 +602,7 @@ doUserAction		SUBROUTINE
 	
 	
 
-getOpponentNextAction		SUBROUTINE
+getAINextAction		SUBROUTINE
 
 
 ;opponentAction			0 = nothing
@@ -416,19 +617,16 @@ getOpponentNextAction		SUBROUTINE
 ;						2 = left
 ;						3 = right
 
-	lda		opponentTimeOut
+	lda		aiTimeOut
 	beq		.continue
 	rts
 	
 	
 .continue
-	lda		opponentWasStruck			; If opponent was struck last frame, weight his action towards moving right
-	cmp		#0
+	lda		p2WasStruck					; If p2 was struck last frame, weight his action towards moving right
 	beq		.wasntStruckLastFrame
-	lda		#0							; reset opponentWasStruck
-	sta		opponentWasStruck
 	
-	lda		opponentXPos
+	lda		p2XPos
 	cmp		#$88
 	beq		.wasntStruckLastFrame		; If at right edge of screen, act as if wasn't struck
 	
@@ -441,13 +639,9 @@ getOpponentNextAction		SUBROUTINE
 
 .wasntStruckLastFrame
 	lda		p1IsStriking				; If being struck, give random chance to block (weight higher for ^ difficulty lvl)
-	cmp		#0
 	beq		.notBeingStruck
 
-	lda		#0							; Reset p1IsStriking
-	sta		p1IsStriking
-
-	lda		opponentXPos				; Check if user is even in range
+	lda		p2XPos						; Check if user is even in range
 	sec
 	sbc		p1XPos				
 	cmp		#5
@@ -455,21 +649,17 @@ getOpponentNextAction		SUBROUTINE
 
 .newRand0
 	jsr		rand
-	cmp		#28
-	beq		.newRand0		
-	bpl		.failBlock					; If random block fails, store state vars and act as if not being struck
+	cmp		#60
+;	beq		.newRand0		
+	bpl		.notBeingStruck				; If random block fails, store state vars and act as if not being struck
 	
 	lda		#3
-	sta		opponentAction
+	sta		SCREENMEMORY1
+	sta		p2Action
 	rts
 
-	
-.failBlock	
-	lda		#1
-	sta		opponentWasStruck
-	
 .notBeingStruck
-	lda		opponentXPos
+	lda		p2XPos
 	sec
 	sbc		p1XPos				; If within striking range, random chance to strike
 	cmp		#5
@@ -486,17 +676,17 @@ getOpponentNextAction		SUBROUTINE
 	bpl		.kick
 	
 	lda		#2
-	sta		opponentAction
+	sta		p2Action
 	rts
 	
 .kick
 	lda		#1
-	sta		opponentAction
+	sta		p2Action
 	rts
 
 	
 .notWithinRange
-	lda		opponentXPos
+	lda		p2XPos
 	sec
 	sbc		p1XPos				; If not actually not within range, move toward p1
 	cmp		#5
@@ -505,18 +695,18 @@ getOpponentNextAction		SUBROUTINE
 
 .moveRight							
 	lda		#3
-	sta		opponentDir
+	sta		aiDir
 	lda		#4
-	sta		opponentAction
+	sta		p2Action
 
 	rts
 	
 
 .moveLeft
 	lda		#2
-	sta		opponentDir
+	sta		aiDir
 	lda		#4
-	sta		opponentAction
+	sta		p2Action
 	
 	rts
 	
@@ -527,7 +717,7 @@ getOpponentNextAction		SUBROUTINE
 	
 	
 	
-doOpponentAction		SUBROUTINE
+doAIAction		SUBROUTINE
 
 ;opponentAction			0 = nothing
 ;						1 = kick
@@ -541,15 +731,21 @@ doOpponentAction		SUBROUTINE
 ;						2 = left
 ;						3 = right
 
+	lda		#0
+	sta		p2IsStriking
 
-	lda		opponentAction
+	lda		p2Action
 	bne		.checkTimeOut
 
 	
-.drawOpponentDefault	
+.drawp2Default	
+	lda		#0
+	sta		p2IsBlocking
+
+
 	lda		#82			; draw fighter graphic starting from character code 0
 	sta		drawCode
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
 	lda		<#KenStandMask
 	sta		$05
@@ -561,101 +757,110 @@ doOpponentAction		SUBROUTINE
 	
 	
 .checkTimeOut
-	lda		opponentTimeOut
+	lda		aiTimeOut
 	beq		.checkKick
 	rts
 	
 .checkKick
-	lda		opponentAction
+	lda		p2Action
 	cmp		#1
 	bne		.checkPunch	
 
+	lda		#1
+	sta		p2IsStriking
+
 	lda		#134			; draw fighter kick graphic starting from character code 134
 	sta		drawCode
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
 	lda		<#KenKickMask
 	sta		$05
 	lda		>#KenKickMask
 	sta		$06
 
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
 	jsr		clearFighter		
 
 	jsr		drawFighter
 
 	lda		#16						
-	sta		opponentAnimTimer	
+	sta		p2AnimTimer	
 	jmp		.end
 
 	
 .checkPunch
 	cmp		#2
 	bne		.checkBlock
+
+	lda		#1
+	sta		p2IsStriking
 	
 	lda		#117			; draw fighter punch graphic starting from character code 117
 	sta		drawCode
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
 	lda		<#KenPunchMask
 	sta		$05
 	lda		>#KenPunchMask
 	sta		$06
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
 	jsr		clearFighter		
 
 	jsr		drawFighter
 
 	lda		#16						
-	sta		opponentAnimTimer	
+	sta		p2AnimTimer	
 	jmp		.end
 	
 .checkBlock
 	cmp		#3
 	bne		.checkDirection
 
+	lda		#1
+	sta		p2IsBlocking
+
 	lda		#151			; draw fighter block graphic starting from character code 151
 	sta		drawCode
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
 	lda		<#KenBlockMask
 	sta		$05
 	lda		>#KenBlockMask
 	sta		$06
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
 	jsr		clearFighter		
 
 	jsr		drawFighter
 
 	lda		#16						
-	sta		opponentAnimTimer	
+	sta		p2AnimTimer	
 	
 	jmp		.end
 
 	
 .checkDirection
-	lda		opponentDir
+	lda		aiDir
 	cmp		#2
 	bne		.checkRight
 
-	lda		opponentXPos
+	lda		p2XPos
 	sec
 	sbc		#4
-	cmp		p1XPos			; is opponent touching p1
+	cmp		p1XPos					; is p2 touching p1
 	beq		.end					; if so, no movement left
 	
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
-	jsr		clearFighter			; otherwise, clear opponent
+	jsr		clearFighter			; otherwise, clear p2
 
 	
-	lda		opponentXPos			; make new opponent position 1 column to left
+	lda		p2XPos					; make new p2 position 1 column to left
 	sec
 	sbc		#$01
-	sta		opponentXPos
+	sta		p2XPos
 	jmp		.doStepAnimation	
 
 			
@@ -664,45 +869,45 @@ doOpponentAction		SUBROUTINE
 	cmp		#3
 	bne		.end
 
-	lda		opponentXPos
-	cmp		#$88					; is opponent at right edge of screen
+	lda		p2XPos
+	cmp		#$88					; is p2 at right edge of screen
 	beq		.end					; if so, no movement right
 	
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
-	jsr		clearFighter			; otherwise, clear opponent
+	jsr		clearFighter			; otherwise, clear p2
 
 	
-	lda		opponentXPos			; make new opponent position 1 column to left
+	lda		p2XPos					; make new p2 position 1 column to left
 	clc
 	adc		#$01
-	sta		opponentXPos
+	sta		p2XPos
 	
 	
 	
 .doStepAnimation
-	lda		#100				; draw fighter step graphic starting from character code 100
+	lda		#100					; draw fighter step graphic starting from character code 100
 	sta		drawCode
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
 	lda		<#KenStepMask
 	sta		$05
 	lda		>#KenStepMask
 	sta		$06
-	lda		opponentXPos
+	lda		p2XPos
 	sta		drawXPos
 	jsr		clearFighter		
 
 	jsr		drawFighter
 	lda		#16				
-	sta		opponentAnimTimer
+	sta		p2AnimTimer
 	
 	
 
 
 .end
-	lda		#24
-	sta		opponentTimeOut
+	lda		currentLevelTimeOut
+	sta		aiTimeOut
 
 	rts
 	
@@ -1099,34 +1304,34 @@ irqHandler
 	
 ; Reset animations in progress to default stance if animation timer reaches 0
 
-.decp1AnimTimer	
+.decP1AnimTimer	
 	lda		p1Action
-	beq		.decOppAnimTimer			; If the character is not mid action, do opponent check
+	beq		.decP2AnimTimer				; If the character is not mid action, do p2 check
 
-	dec		p1AnimTimer			; Otherwise, decrement their animation timer
-	bne		.decOppAnimTimer			; If it reaches 0, set their action to 0 (default stance)
+	dec		p1AnimTimer					; Otherwise, decrement their animation timer
+	bne		.decP2AnimTimer				; If it reaches 0, set their action to 0 (default stance)
 	
-.setp1Action	
+.setP1Action	
 	lda		#0
 	sta		p1Action
 	
 	
-.decOppAnimTimer
-	lda		opponentAction
-	beq		.decOppTimeout				; If the opponent is not mid action, skip
+.decP2AnimTimer
+	lda		p2Action
+	beq		.decAiTimeOut				; If the p2 is not mid action, skip
 	
-	dec		opponentAnimTimer			; Otherwise, decrement their animation timer
+	dec		p2AnimTimer					; Otherwise, decrement their animation timer
 	bne		.resetTimer					; If it reaches 0, set their action to 0
 	
-.setOppAction
+.setP2Action
 	lda		#0
-	sta		opponentAction
+	sta		p2Action
 	
-.decOppTimeout	
-	lda		opponentTimeOut
+.decAiTimeOut	
+	lda		aiTimeOut
 	beq		.resetTimer
 
-	dec		opponentTimeOut
+	dec		aiTimeOut
 	
 .resetTimer	
 	; 125x per second (1000,000 / 125 = 8000 = 0x1F40)
@@ -1165,18 +1370,21 @@ emptySpaceCode
 	.byte	#168
 	
 
+timer
+	.byte	#120
 	
-p1XPos		.byte	$00
-p1YPos		.byte	$00
-p1Action		.byte	$00
-p1AnimTimer	.byte	$00
+	
+p1XPos				.byte	$00
+p1YPos				.byte	$00
+p1Action			.byte	$00
+p1AnimTimer			.byte	$00
 
 
-opponentXPos		.byte	$00
-opponentYPos		.byte	$00
-opponentAction		.byte	$00
-opponentAnimTimer	.byte	$00
-opponentTimeOut		.byte	$00
+p2XPos				.byte	$00
+p2YPos				.byte	$00
+p2Action			.byte	$00
+p2AnimTimer			.byte	$00
+aiTimeOut			.byte	$00
 
 drawXPos			.byte	$00
 drawCode			.byte	$00
@@ -1213,12 +1421,15 @@ p1IsStriking		.byte	$00
 p1IsBlocking		.byte	$00
 p1WasStruck			.byte	$00
 
+p2HitPoints			.byte	$00
+p2LifeBarPos		.byte	$00		; same as for p1LifeBarPos
+p2IsStriking		.byte	$00
+p2WasStruck			.byte	$00
+p2IsBlocking		.byte	$00
 
-opponentHitPoints	.byte	$00
-opponentLifeBarPos	.byte	$00		; same as for p1LifeBarPos
-opponentWasStruck	.byte	$00
-opponentDir			.byte	$00
-opponentBlocked		.byte	$00
+
+aiDir				.byte	$00
+currentLevelTimeOut	.byte	$00		
 		
 distanceApart		.byte	$00
 userPress			.byte	$00
@@ -1228,7 +1439,7 @@ userPress			.byte	$00
 p1LifeBarTicks
 	.byte		#1, #1, #1, #1, #1, #1, #1
 
-opponentLifeBarTicks
+p2LifeBarTicks
 	.byte		#1, #1, #1, #1, #1, #1, #1
 
 
@@ -1351,17 +1562,6 @@ lifebarCodes	; code 169
 	.byte	$fe, $01, $bb, $bb, $bb, $bb, $01, $fe 
 
 
-	
-	.byte	$ff, $80, $80, $80, $80, $80, $80, $ff ; 0 - left end empty
-	.byte	$ff, $80, $98, $98, $98, $98, $80, $ff ; 1 - left end full 
-	.byte	$ff, $00, $00, $00, $00, $00, $00, $ff ; 2 - middle empty
-	.byte	$ff, $00, $18, $18, $18, $18, $00, $ff ; 3 - middle full
-	.byte	$ff, $01, $01, $01, $01, $01, $01, $ff ; 4 - right empty
-	.byte	$ff, $01, $19, $19, $19, $19, $01, $ff ; 5 - right full
-	
-	
-	
-	
 	
 	
 	
