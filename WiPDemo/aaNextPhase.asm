@@ -88,6 +88,41 @@ main
 	ldx		#$08
 	stx		$900f		; set background color to black and border color to cyan -- see appendices for codes and memory locations to store in 
 
+	; load the address of a custom interrupt routine into Vic memory where the IRQ vector resides
+	lda		<#irqHandler
+	sta		IRQLOW
+	lda		>#irqHandler
+	sta		IRQHIGH
+	cli
+
+	lda		#$a0		; bit 7 = 1 and bit 5 = 1. This means we are enabling interrupts (bit 7) for timer 2 (bit 5)
+	sta		IER			; store in the interrupt enable register
+	
+	lda		ACR
+	and		#$DF		; set timer2 to operate in 1 shot mode		
+	sta		ACR
+
+	; This will interrupt 125x per second
+	lda		#$40
+	sta		T2LOW		; store low order byte of timer	countdown	
+	lda		#$1F
+	sta		T2HIGH		; store high order byte of timer (also starts the countdown AND CLEARS INTERRUPT FLAG)
+
+
+	; Init Music
+	lda		#$51		; D1 with high bit off
+	sta		SPEAKER2
+
+
+	lda		#$04
+	sta		VOLUME
+	
+	lda		#$80
+	sta		ram_02
+	
+	lda		#0
+	sta		ram_01
+
 	
 	lda		#32
 	sta		emptySpaceCode
@@ -105,30 +140,8 @@ nebro
 
 	lda		#168
 	sta		emptySpaceCode
+
 	
-
-	; load the address of a custom interrupt routine into Vic memory where the IRQ vector resides
-	lda		<#irqHandler
-	sta		IRQLOW
-	lda		>#irqHandler
-	sta		IRQHIGH
-	cli
-
-
-	lda		#$a0		; bit 7 = 1 and bit 5 = 1. This means we are enabling interrupts (bit 7) for timer 2 (bit 5)
-	sta		IER			; store in the interrupt enable register
-	
-	lda		ACR
-	and		#$DF		; set timer2 to operate in 1 shot mode		
-	sta		ACR
-
-	; This will interrupt 125x per second
-	lda		#$40
-	sta		T2LOW		; store low order byte of timer	countdown	
-	lda		#$1F
-	sta		T2HIGH		; store high order byte of timer (also starts the countdown AND CLEARS INTERRUPT FLAG)
-
-
 	
 	lda		#$FE					; load code for telling vic chip where to look for character data (this code is hardwired and tells it to look at 6144)
 	sta		$9005					; store in Vic chip
@@ -145,23 +158,7 @@ nebro
 	ldx		#$84
 	stx		p2XPos
 	ldx		#$1f
-	stx		p2YPos
-
-	
-	lda		#$51		; D1 with high bit off
-	sta		SPEAKER2
-
-
-	lda		#$04
-	sta		VOLUME
-	
-	lda		#$80
-	sta		ram_02
-	
-	lda		#0
-	sta		ram_01
-
-	
+	stx		p2YPos	
 
 
 	ldx		#1
