@@ -1668,7 +1668,7 @@ startScreenLayout	; jump table for skipping to the next appropriate grapic in ST
 	.byte	<#E, >#E, #169
 	.byte	<#R, >#R, #173
 	
-	.byte	<#V, >#V, #60
+	.byte	<#V, >#V, #37
 
 
 
@@ -1676,9 +1676,9 @@ startScreenLayout	; jump table for skipping to the next appropriate grapic in ST
 ; zero page memory is used to reference these masks and inc $01 will wrap around to $0 if a page is crossed.
 
 	
-	ORG		$1721 ;(5921) 	 -> page boundaries: 5888 [page] 6144
+	ORG		$1703 ;(5921) 	 -> page boundaries: 5888 [page] 6144
 	
-startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 133 bytes
+startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 163 bytes
 S
 	.byte	#4, #2, #233, #223, #95, #118, #117, #223, #95, #105
 
@@ -1705,9 +1705,10 @@ H
 
 	
 V
-	.byte	#5, #8, #95, #223, #32, #32, #32, #32, #233, #105, #32, #160, #32, #32, #32, #32, #160, #32
-	.byte	#32, #95, #223, #32, #32, #233, #105, #32, #32, #32, #95, #223, #233, #105, #32, #32
-	.byte	#32, #32, #32, #95, #105, #32, #32, #32
+	.byte	#7, #10, #95, #204, #32, #32, #32, #32, #32, #32, #250, #105, #32, #95, #223, #32, #32, #32, #32, #233, #105, #32
+	.byte	#32, #32, #160, #32, #32, #32, #32, #160, #32, #32, #32, #32, #95, #223, #32, #32, #233, #105, #32, #32
+	.byte	#32, #32, #32, #160, #32, #32, #160, #32, #32, #32, #32, #32, #32, #95, #223, #233, #105, #32, #32, #32
+	.byte	#32, #32, #32, #32, #95, #105, #32, #32, #32, #32
 	
 
 RyuStandMask
