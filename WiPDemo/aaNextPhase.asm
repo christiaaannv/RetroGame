@@ -52,11 +52,11 @@ IRQLOW					.equ	$0314
 IRQHIGH					.equ	$0315
 
 
-P1LIFEBARSTART			.equ	#7725	
-P2LIFEBARSTART			.equ	#7738
+P1LIFEBARSTART			.equ	#7680	
+P2LIFEBARSTART			.equ	#7695
 
-P1LIFEBARSTARTCOLOR		.equ	#38445
-P2LIFEBARSTARTCOLOR		.equ	#38458
+P1LIFEBARSTARTCOLOR		.equ	#38400
+P2LIFEBARSTARTCOLOR		.equ	#38415
 
 
 DEBUGSCR1				.equ	$1E00
@@ -65,11 +65,47 @@ DEBUGSCR3				.equ	$1E04
 DEBUGSCR4				.equ	$1E06
 
 
+DEBUGSCR5				.equ	$1FD0
+DEBUGSCR6				.equ	$1FD2
+DEBUGSCR7				.equ	$1FD4
+DEBUGSCR8				.equ	$1FD6
+
+DEBUGSCR9				.equ	$1FD8
+DEBUGSCR10				.equ	$1FDA
+DEBUGSCR11				.equ	$1FDC
+DEBUGSCR12				.equ	$1FDE
+
+
+DEBUGSCRA				.equ	$1E16
+DEBUGSCRB				.equ	$1E18
+DEBUGSCRC				.equ	$1E1A
+DEBUGSCRD				.equ	$1E1C
+
+
+
 main
 
-	ldx		#$0B
+	ldx		#$08
 	stx		$900f		; set background color to black and border color to cyan -- see appendices for codes and memory locations to store in 
 
+	
+	lda		#32
+	sta		emptySpaceCode
+
+	ldx		#2
+	jsr		fillScreen
+
+	jsr		drawStreetFighterBanner
+	
+nebro
+	jsr		getInput
+	cmp		#1
+	bne		nebro
+
+
+	lda		#168
+	sta		emptySpaceCode
+	
 
 	; load the address of a custom interrupt routine into Vic memory where the IRQ vector resides
 	lda		<#irqHandler
@@ -97,27 +133,12 @@ main
 	lda		#$FE					; load code for telling vic chip where to look for character data (this code is hardwired and tells it to look at 6144)
 	sta		$9005					; store in Vic chip
 	
-
-	
-	; store addresses to screen memory blocks in zero page (x1f7A is 6 rows from the bottom of the screen where fighter starts)
-	ldx		#$7A
-	stx		$01
-	ldx		#$1f
-	stx		$02
 	
 	; store where top left of fighter is in screen memory into ram locations (basically represents x,y coordinates)
 	ldx		#$7A
 	stx		p1XPos
 	ldx		#$1f
 	stx		p1YPos
-
-	
-	
-	; store addresses to screen memory blocks in zero page (x1f84 is 6 rows from the bottom of the screen where opponent starts)
-	ldx		#$84
-	stx		$03
-	ldx		#$1f
-	stx		$04
 
 
 	; store where top left of opponent is in screen memory into ram locations (basically represents x,y coordinates)
@@ -152,6 +173,13 @@ main
 	lda		#16
 	sta		currentLevelTimeOut
 	
+
+	lda		#6
+	sta		p1Color
+	
+	lda		#4
+	sta		p2Color
+
 	
 mainLoop	SUBROUTINE
 
@@ -169,6 +197,7 @@ mainLoop	SUBROUTINE
 	jsr		updateHUD
 	jsr		drawLifebars
 	
+	jsr		colorFighter
 
 	jsr		clearInputBufferB
 	
@@ -737,7 +766,7 @@ doAIAction		SUBROUTINE
 	bne		.checkTimeOut
 
 	
-.drawp2Default	
+.drawP2Default	
 	lda		#0
 	sta		p2IsBlocking
 
@@ -857,9 +886,9 @@ doAIAction		SUBROUTINE
 
 	
 	lda		p2XPos					; make new p2 position 1 column to left
-	sec
-	sbc		#$01
-	sta		p2XPos
+	tay
+	dey
+	sty		p2XPos
 	jmp		.doStepAnimation	
 
 			
@@ -878,9 +907,9 @@ doAIAction		SUBROUTINE
 
 	
 	lda		p2XPos					; make new p2 position 1 column to left
-	clc
-	adc		#$01
-	sta		p2XPos
+	tay
+	iny
+	sty		p2XPos
 	
 	
 	
@@ -1068,6 +1097,20 @@ clearInputBufferB		SUBROUTINE
 	
 	
 	
+
+colorFighter	SUBROUTINE
+
+	
+
+
+	
+	
+
+	rts
+
+	
+	
+	
 ; draws the fighter's current animation frame
 ; drawXPos must hold the lower byte of the address in screen memory for the top left cell of the character
 ; drawYPos must hold the upper byte of the address in screen memory for the top left cell of the character
@@ -1075,26 +1118,46 @@ clearInputBufferB		SUBROUTINE
 ; zero page $05 and $06 must hold the address of the draw mask to use for the 
 
 drawFighter	 SUBROUTINE	
+
+	lda		drawCode
+	cmp		#82
+	bpl		.itsP2
+	lda		p1Color
+	sta		drawColor
+	jmp		.draw
+
+.itsP2
+	lda		p2Color
+	sta		drawColor
 	
+.draw	
 	lda		drawXPos		; drawXPos must hold the lower byte of the address in screen memory for the top left cell of the character
-	sta		$01				; store in 0 page for indirect indexed addressing
+	sta		$01				; store lower half of address in 0 page for indirect indexed addressing (screen memory)	
+	sta		$07
+	
+	ldx		#$1f			
+	stx		$02				; store upper half of address in 0 page for indirect indexed addressing (screen memory)
 
 	
-
+	
+	lda		#$97			; store upper half of address in 0 page for indirect indexed addressing (color control)
+	sta		$08
+	
+	
 	ldy		#0
 	lda		($05),y			; load number of character codes composing current fighter frame being drawn
 	sta		counter			; store as outer loop counter
 	inc		$05
 
 	lda		($05),y			; load number of character codes in first column
-	sta		ram_15			
+	sta		ram_04			
 	clc
 	adc		drawCode		; add this value to drawCode 
-	sta		ram_14			; store as inner loop control variable		
+	sta		ram_03			; store as inner loop control variable		
 	inc		$05
 	
 	ldy		#0
-	sty		ram_16			; store 0 in ram_16 - used for tracking the character code to print next
+	sty		ram_05			; store 0 in ram_05 - used for tracking the character code to print next
 	ldx		drawCode		; start with screen code in drawCode
 
 	
@@ -1111,8 +1174,10 @@ drawFighter	 SUBROUTINE
 	bcc		.empty			; if so, fill with empty space
 	txa						; otherwise, transfer the drawCode into a
 	clc
-	adc		ram_16			; add ram_16 (holds the current character code offset for beginning of column)
+	adc		ram_05			; add ram_05 (holds the current character code offset for beginning of column)
 	sta		($01),y			; store screen codes in screen memory offset by y = {0, 22, 44, ... 132} for successive columns 
+	lda		drawColor
+	sta		($07),y
 	inx						; move to next character code
 	jmp		.skipEmpty
 	
@@ -1128,27 +1193,28 @@ drawFighter	 SUBROUTINE
 
 	
 	txa						; transfer x into a for comparison
-	cmp		ram_14			; ram_14 holds the code to stop at for the current column, a holds the current draw code
+	cmp		ram_03			; ram_03 holds the code to stop at for the current column, a holds the current draw code
 	bne		.loop1
 	
 	
 	inc		$01				; increment to move to printing the next column
+	inc		$07
 
 	
-	lda		ram_16			; load current character code offset
+	lda		ram_05			; load current character code offset
 	clc
-	adc		ram_15			; add number of codes printed for that column
-	sta		ram_16			; store new offset from beginning of character codes for current graphic
+	adc		ram_04			; add number of codes printed for that column
+	sta		ram_05			; store new offset from beginning of character codes for current graphic
 	cmp		counter			; test if all codes for that graphic were printed
 	beq		.return			; if equal, we are done
 
 
 	ldy		#0
 	lda		($05),y			; load number of character codes in next column
-	sta		ram_15
+	sta		ram_04
 	clc
 	adc		drawCode
-	sta		ram_14			; store as loop control variable		
+	sta		ram_03			; store as loop control variable		
 	inc		$05
 
 	
@@ -1202,6 +1268,140 @@ clearFighter	 SUBROUTINE
 	bne		.top
 	
 	rts	
+	
+	
+	
+	
+	
+	
+wait				SUBROUTINE
+	lda		ACR
+	and		#$DF		; set timer to operate in 1 shot mode		
+	sta		ACR
+	
+	ldy		#3
+
+.top	
+	lda		#$00
+	sta		T2LOW		; store low order byte of timer	countdown	
+	lda		#$FF
+	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
+		
+.loop 
+    lda		T2HIGH
+	and		#$FF
+    bne		.loop
+
+	dey
+	bne		.top
+	
+	rts
+	
+	
+	
+	
+	
+drawStreetFighterBanner		SUBROUTINE	
+
+
+	lda		#0
+	sta		ram_04						; loop control for drawing all letter graphics
+
+	lda		<#SCREENMEMORY1				; store the address of screen memory in zero page
+	sta		$03
+	lda		>#SCREENMEMORY1
+	sta		$04
+
+	
+	
+.outerTop	
+	ldy		ram_04
+	lda		startScreenLayout,y			; load then store low half of address of next graphic to draw
+	sta		$01
+	iny
+	lda		startScreenLayout,y			; load then store high half of address of next graphic to draw
+	sta		$02
+	iny
+	lda		startScreenLayout,y			; load the offset in screen memory to begin drawing graphic
+	tax
+	sta		ram_09
+		
+		ldy		#0
+		lda		($01),y					; load the number of rows in graphic
+		sta		ram_05					; loop control variable
+		inc		$01
+	
+		lda		($01),y					; load the number of columns in graphic
+		sta		ram_06					; inner loop control variable
+		sta		ram_07					; store the number of columns to init inner loop control variable each row
+		inc		$01
+		
+.innerTop
+		ldy		#0
+		lda		($01),y					; load screen code to draw for this cell
+		ldy		ram_09					; load the current offset into 'y'
+		sta		($03),y					; store in screen memory offset by 'y'
+		inc		$01
+		inc		ram_09					; increment the current offset
+		dec		ram_06					; decrement the loop control variable
+		bne		.innerTop
+			
+		lda		#22						; skip 22 - nColumns cells on screen to move to next row
+		sec
+		sbc		ram_07					; 22 - nColumns
+		sta		ram_08					; store to add to current offset
+		lda		ram_09					; load the current offset into 'a'
+		clc
+		adc		ram_08					; currentOffset = currentOffset + (22 - nColumns)
+		sta		ram_09					; save the new offset for drawing the next row
+			
+		lda		ram_07					; load nColumns
+		sta		ram_06					; store in loop control variable
+		dec		ram_05					; decrement n rows left to draw
+		bne		.innerTop				; if not 0, go to top
+
+		inc 	ram_04					; increment once to skip low address of next letter graphic to draw
+		inc		ram_04					; increment once to skip high address of next letter graphic to draw
+		inc		ram_04					; increment once to skip offset in screen memory to begin drawing at
+
+		jsr		wait
+		
+		lda		ram_04
+		cmp		#39						; if not 39 (STREET FIGHTER).length() == 13 * 3 bytes of info per entry
+										; (see startScreenLayout)
+		bmi		.outerTop				; go to top
+		
+		
+		cmp		#42
+		beq		.printInstructions
+
+		
+		lda		<#SCREENMEMORY2				; store the address of screen memory in zero page
+		sta		$03
+		lda		>#SCREENMEMORY2
+		sta		$04
+		jmp		.outerTop
+
+		
+
+.printInstructions
+	ldx		#19
+	ldy		#249
+.loop    
+	lda		startGameString,x
+
+	sta		SCREENMEMORY2,y
+	
+	dey
+	dex
+	bpl		.loop
+	rts
+
+	
+	rts
+
+
+
 	
 	
 	
@@ -1366,46 +1566,55 @@ defaultCharacterColor
 	.byte	#1
 	
 emptySpaceCode
-	.byte	#168
+	.byte	$00
 	
 
 timer
 	.byte	#120
 	
-	
+
 p1XPos				.byte	$00
+p1XPosColor			.byte	$00
 p1YPos				.byte	$00
 p1Action			.byte	$00
 p1AnimTimer			.byte	$00
+p1Color				.byte	$00
 
 
+p2DrawCodesStart	.byte	#82
 p2XPos				.byte	$00
+p2XPosColor			.byte	$00
 p2YPos				.byte	$00
 p2Action			.byte	$00
 p2AnimTimer			.byte	$00
+p2Color				.byte	$00
+
+
 aiTimeOut			.byte	$00
 
 drawXPos			.byte	$00
 drawCode			.byte	$00
+drawColor			.byte	$00
+
 
 ram_00				.byte	$00		; used in irq handler, volatile
 ram_01				.byte	$00		; used in irq handler, volatile
 ram_02				.byte	$00		; used in irq handler, volatile
-ram_03				.byte	$00		; not yet used ...
-ram_04				.byte	$00
-ram_05				.byte	$00
-ram_06				.byte	$00
+ram_03				.byte	$00		; used in drawFighter, usable in other routines
+ram_04				.byte	$00		; used in drawFighter, usable in other routines
+ram_05				.byte	$00		; used in drawFighter, usable in other routines
+ram_06				.byte	$00		; not yet used ...
 ram_07				.byte	$00
 ram_08				.byte	$00
 ram_09				.byte	$00
 ram_10				.byte	$00
 ram_11				.byte	$00
 ram_12				.byte	$00
-ram_13				.byte	$00		; ...
-ram_14				.byte	$00		; used in drawFighter
-ram_15				.byte	$00		; used in drawFighter
-ram_16				.byte	$00		; used in drawFighter
-ram_17				.byte	$00		; not yet used ...
+ram_13				.byte	$00
+ram_14				.byte	$00
+ram_15				.byte	$00
+ram_16				.byte	$00
+ram_17				.byte	$00
 ram_18				.byte	$00
 ram_19				.byte	$00
 ram_20				.byte	$00
@@ -1439,63 +1648,71 @@ p1LifeBarTicks
 p2LifeBarTicks
 	.byte		#1, #1, #1, #1, #1, #1, #1		; change to use bit mask instead
 
+
 	
-startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 98 bytes
+startGameString
+    .byte  #16, #18, #5, #19, #19, #32, #40, #19, #41, #32, #20, #15, #32, #6, #9, #7, #8, #20, #33, #33
+	
+	
+startScreenLayout	; jump table for skipping to the next appropriate grapic in STREET FIGHTER graphics
+					; [low of address for graphic], [high of address for graphic], [scr memory offset to draw at]
+	.byte	<#S, >#S, #24
+	.byte	<#T, >#T, #27
+	.byte	<#R, >#R, #52
+	.byte	<#E, >#E, #55
+	.byte	<#E, >#E, #58
+	.byte	<#T, >#T, #40
+	
+	.byte	<#F, >#F, #132
+	.byte	<#I, >#I, #136
+	.byte	<#G, >#G, #160
+	.byte	<#H, >#H, #140
+	.byte	<#T, >#T, #144
+	.byte	<#E, >#E, #169
+	.byte	<#R, >#R, #173
+	
+	.byte	<#V, >#V, #60
+
+
+
+; make sure none of these cross a page boundary (unless aligned such that one mask ends right at a boundary)
+; zero page memory is used to reference these masks and inc $01 will wrap around to $0 if a page is crossed.
+
+	
+	ORG		$1721 ;(5921) 	 -> page boundaries: 5888 [page] 6144
+	
+startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 133 bytes
 S
 	.byte	#4, #2, #233, #223, #95, #118, #117, #223, #95, #105
 
 T
-	.byte	#4, #3, #32, #111, #111, #78, #93, #32, #32, #93, #32, #32, #93, #32
+	.byte	#4, #2, #103, #101, #122, #76, #80, #79, #103, #223
 
 R
-	.byte	#5, #3, #67, #67, #73, #67, #199, #66, #77, #67, #75, #115, #77, #32, #93, #32, #77
+	.byte	#3, #2, #105, #95, #116, #32, #116, #32
 
-e
-	.byte	#3, #3, #233, #105, #95, #105, #111, #233, #223, #111, #111
-	
 E
-	.byte	#3, #3, 106, #105, #119, #106, #67, #91, #106, #223, #111
+	.byte	#3, #3, #233, #105, #95, #105, #111, #233, #223, #111, #111
 
 F
 	.byte	#4, #4, #106, #105, #119, #126, #106, #67, #73, #32, #106, #32, #32, #32, #106, #223, #32, #32
 
 I
-	.byte	#3, #1, #219, #219, #219
+	.byte	#4, #1, #126, #97, #97, #97
 
 G
 	.byte	#4, #2, #105, #95, #223, #233, #32, #106, #111, #233
 
 H
-	.byte	#4, #3, #116, #90, #106, #223, #100, #233, #105, #99, #95, #116, #90, #106
+	.byte	#4, #4, #106, #32, #32, #32, #106, #20, #13, #32, #106, #32, #32, #32, #106, #105, #95, #32
 
-r
-	.byte	#3, #2, #105, #95, #116, #32, #116, #32
 	
-	
-startScreenLayout			; -> 39 bytes
-	.byte	<#S, >#S, #46
-	.byte	<#T, >#T, #48
-	.byte	<#R, >#R, #29
-	.byte	<#e, >#e, #76
-	.byte	<#e, >#e, #79
-	.byte	<#T, >#T, #60
-	
-	.byte	<#F, >#F, #156
-	.byte	<#I, >#I, #181
-	.byte	<#G, >#G, #205
-	.byte	<#H, >#H, #164
-	.byte	<#T, >#T, #167
-	.byte	<#E, >#E, #190
-	.byte	<#r, >#r, #192
-		
-	
-	
-	
+V
+	.byte	#5, #8, #95, #223, #32, #32, #32, #32, #233, #105, #32, #160, #32, #32, #32, #32, #160, #32
+	.byte	#32, #95, #223, #32, #32, #233, #105, #32, #32, #32, #95, #223, #233, #105, #32, #32
+	.byte	#32, #32, #32, #95, #105, #32, #32, #32
 	
 
-;make sure none of these cross a page boundary (can be separated from one another but not broken intrinsically)
-
-	ORG		$17A5
 RyuStandMask
 	.byte		#16, #5, $7C, #5, $7C, #5, $7C, #1, $04
 
