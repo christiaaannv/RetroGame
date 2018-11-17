@@ -41,6 +41,8 @@
 	b.	Timer?
 	c.	Score
 	d.	These are important variables to map to RAM in point 4.
+	
+8.  Create strike sounds and possibly animations (blood flying)
 
 
 

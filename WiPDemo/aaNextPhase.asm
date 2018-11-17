@@ -135,10 +135,10 @@ main
 	sta		VOLUME
 	
 	lda		#$80
-	sta		ram_05
+	sta		ram_02
 	
 	lda		#0
-	sta		ram_03
+	sta		ram_01
 
 	
 
@@ -654,7 +654,6 @@ getAINextAction		SUBROUTINE
 	bpl		.notBeingStruck				; If random block fails, store state vars and act as if not being struck
 	
 	lda		#3
-	sta		SCREENMEMORY1
 	sta		p2Action
 	rts
 
@@ -1226,7 +1225,7 @@ irqHandler
 	eor		#$80
 	sta		SPEAKER2
 
-	ldy		ram_03
+	ldy		ram_01
 	lda		melody,y
 	sta		SPEAKER3
 	clc
@@ -1237,7 +1236,7 @@ irqHandler
 
 
 .dropTheBass
-	ldy		ram_03
+	ldy		ram_01
 	cpy		#0
 	bne		.continue1
 	lda		#$D1			; change to alter the repeating note
@@ -1288,7 +1287,7 @@ irqHandler
 
 	
 .store
-	sty		ram_03
+	sty		ram_01
 
 	
 	
@@ -1389,10 +1388,10 @@ aiTimeOut			.byte	$00
 drawXPos			.byte	$00
 drawCode			.byte	$00
 
-ram_00				.byte	$00
-ram_01				.byte	$00
-ram_02				.byte	$00
-ram_03				.byte	$00
+ram_00				.byte	$00		; used in irq handler, volatile
+ram_01				.byte	$00		; used in irq handler, volatile
+ram_02				.byte	$00		; used in irq handler, volatile
+ram_03				.byte	$00		; not yet used ...
 ram_04				.byte	$00
 ram_05				.byte	$00
 ram_06				.byte	$00
@@ -1402,27 +1401,25 @@ ram_09				.byte	$00
 ram_10				.byte	$00
 ram_11				.byte	$00
 ram_12				.byte	$00
-ram_13				.byte	$00
-ram_14				.byte	$00
-ram_15				.byte	$00
-ram_16				.byte	$00
-ram_17				.byte	$00
+ram_13				.byte	$00		; ...
+ram_14				.byte	$00		; used in drawFighter
+ram_15				.byte	$00		; used in drawFighter
+ram_16				.byte	$00		; used in drawFighter
+ram_17				.byte	$00		; not yet used ...
 ram_18				.byte	$00
 ram_19				.byte	$00
 ram_20				.byte	$00
 ram_21				.byte	$00
 ram_22				.byte	$00
-ram_23				.byte	$00
+ram_23				.byte	$00		; ...
 
 
 p1HitPoints			.byte	$00
-p1LifeBarPos		.byte	$00		; indicates the upper-most section of the lifebar with life remaining
 p1IsStriking		.byte	$00
 p1IsBlocking		.byte	$00
 p1WasStruck			.byte	$00
 
 p2HitPoints			.byte	$00
-p2LifeBarPos		.byte	$00		; same as for p1LifeBarPos
 p2IsStriking		.byte	$00
 p2WasStruck			.byte	$00
 p2IsBlocking		.byte	$00
@@ -1437,11 +1434,64 @@ userPress			.byte	$00
 
 
 p1LifeBarTicks
-	.byte		#1, #1, #1, #1, #1, #1, #1
+	.byte		#1, #1, #1, #1, #1, #1, #1		; change to use bit mask instead
 
 p2LifeBarTicks
-	.byte		#1, #1, #1, #1, #1, #1, #1
+	.byte		#1, #1, #1, #1, #1, #1, #1		; change to use bit mask instead
 
+	
+startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 98 bytes
+S
+	.byte	#4, #2, #233, #223, #95, #118, #117, #223, #95, #105
+
+T
+	.byte	#4, #3, #32, #111, #111, #78, #93, #32, #32, #93, #32, #32, #93, #32
+
+R
+	.byte	#5, #3, #67, #67, #73, #67, #199, #66, #77, #67, #75, #115, #77, #32, #93, #32, #77
+
+e
+	.byte	#3, #3, #233, #105, #95, #105, #111, #233, #223, #111, #111
+	
+E
+	.byte	#3, #3, 106, #105, #119, #106, #67, #91, #106, #223, #111
+
+F
+	.byte	#4, #4, #106, #105, #119, #126, #106, #67, #73, #32, #106, #32, #32, #32, #106, #223, #32, #32
+
+I
+	.byte	#3, #1, #219, #219, #219
+
+G
+	.byte	#4, #2, #105, #95, #223, #233, #32, #106, #111, #233
+
+H
+	.byte	#4, #3, #116, #90, #106, #223, #100, #233, #105, #99, #95, #116, #90, #106
+
+r
+	.byte	#3, #2, #105, #95, #116, #32, #116, #32
+	
+	
+startScreenLayout			; -> 39 bytes
+	.byte	<#S, >#S, #46
+	.byte	<#T, >#T, #48
+	.byte	<#R, >#R, #29
+	.byte	<#e, >#e, #76
+	.byte	<#e, >#e, #79
+	.byte	<#T, >#T, #60
+	
+	.byte	<#F, >#F, #156
+	.byte	<#I, >#I, #181
+	.byte	<#G, >#G, #205
+	.byte	<#H, >#H, #164
+	.byte	<#T, >#T, #167
+	.byte	<#E, >#E, #190
+	.byte	<#r, >#r, #192
+		
+	
+	
+	
+	
 
 ;make sure none of these cross a page boundary (can be separated from one another but not broken intrinsically)
 
@@ -1560,6 +1610,33 @@ lifebarCodes	; code 169
 	.byte	$ff, $00, $bb, $bb, $bb, $bb, $00, $ff 
 	.byte	$fe, $01, $01, $01, $01, $01, $01, $fe 
 	.byte	$fe, $01, $bb, $bb, $bb, $bb, $01, $fe 
+	
+
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 
 
 	
