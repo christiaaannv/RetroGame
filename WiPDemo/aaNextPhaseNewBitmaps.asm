@@ -1114,18 +1114,13 @@ drawFighterB		SUBROUTINE
 	ldy		#0				; load the mask for the first 2 rows of the fighter graphic
 	lda		($05),y
 	sta		columnMask
-
-
 	ldy		drawXPos		; load the offset from SCREENMEMORY2 to begin drawing the fighter graphic
-;	ldx		drawCode		; load the drawCode associated with the start of that fighter graphic
-	
 	lda		#6		
 	sta		ram_03			; nRows per fighter graphic
 
 .loop1Init
 	lda		#4
 	sta		ram_04			; nColumns per row Row
-	
 
 .loop1
 	lda		columnMask		; test if the current cell is blank or not
@@ -1175,136 +1170,9 @@ drawFighterB		SUBROUTINE
 	
 .return	
 	rts	
-	
-	
-
-	
-	
-	
-; draws the fighter's current animation frame
-; drawXPos must hold the lower byte of the address in screen memory for the top left cell of the character
-; drawYPos must hold the upper byte of the address in screen memory for the top left cell of the character
-; drawCode must hold the character code to begin printing from (depends on the fighter's animation frame)
-; zero page $05 and $06 must hold the address of the draw mask to use for the fighter graphic
-
-
-; zero page $01 and $02 are loaded with the screen memory address for coloring the fighter graphic
-; zero page $07 and $08 are loaded with the color control address for coloring the fighter graphic
-
-
-drawFighter	 SUBROUTINE	
-
-	lda		drawCode		; use the current draw code to choose character color
-	cmp		#73				; might not work so well with more than two characters
-	bpl		.itsP2
-	lda		p1Color
-	sta		drawColor
-	jmp		.draw
-
-.itsP2
-	lda		p2Color
-	sta		drawColor
-	
-.draw	
-	lda		drawXPos		; drawXPos must hold the lower byte of the address in screen memory for the top left cell of the character
-	sta		$01				; store lower half of address in 0 page for indirect indexed addressing (screen memory)	
-	sta		$07
-	
-	ldx		#$1f			
-	stx		$02				; store upper half of address in 0 page for indirect indexed addressing (screen memory)
-
-	
-	
-	lda		#$97			; store upper half of address in 0 page for indirect indexed addressing (color control)
-	sta		$08
-	
-	
-	ldy		#0
-	lda		($05),y			; load number of character codes composing current fighter frame being drawn
-	sta		counter			; store as outer loop counter
-	inc		$05
-
-	lda		($05),y			; load number of character codes in first column
-	sta		ram_04			
-	clc
-	adc		drawCode		; add this value to drawCode 
-	sta		ram_03			; store as inner loop control variable		
-	inc		$05
-	
-	ldy		#0
-	sty		ram_05			; store 0 in ram_05 - used for tracking the character code to print next
-	ldx		drawCode		; start with screen code in drawCode
-
-	
-.loadMask
-	lda		($05),y			; load then store the mask byte for the column
-	sta		columnMask
-	inc		$05
-
-.loop1
-	lda		columnMask		; test if the current cell is blank or not
-	clc
-	asl
-	sta		columnMask
-	bcc		.empty			; if so, fill with empty space
-	txa						; otherwise, transfer the drawCode into a
-	clc
-	adc		ram_05			; add ram_05 (holds the current character code offset for beginning of column)
-	sta		($01),y			; store screen codes in screen memory offset by y = {0, 22, 44, ... 132} for successive columns 
-	lda		drawColor
-	sta		($07),y
-	inx						; move to next character code
-	jmp		.skipEmpty
-	
-.empty	
-	lda		emptySpaceCode
-	sta		($01),y
-
-.skipEmpty
-	tya
-	clc
-	adc		#22				; add 22 to y to move down one cell in screen memory since each row is 22 cells (x16 = 22)
-	tay
-
-	
-	txa						; transfer x into a for comparison
-	cmp		ram_03			; ram_03 holds the code to stop at for the current column, a holds the current draw code
-	bne		.loop1
-	
-	
-	inc		$01				; increment to move to printing the next column
-	inc		$07
-
-	
-	lda		ram_05			; load current character code offset
-	clc
-	adc		ram_04			; add number of codes printed for that column
-	sta		ram_05			; store new offset from beginning of character codes for current graphic
-	cmp		counter			; test if all codes for that graphic were printed
-	beq		.return			; if equal, we are done
-
-
-	ldy		#0
-	lda		($05),y			; load number of character codes in next column
-	sta		ram_04
-	clc
-	adc		drawCode
-	sta		ram_03			; store as loop control variable		
-	inc		$05
-
-	
-	ldx		drawCode		; otherwise, reset x and y for printing the next column
-	ldy		#0
-	jmp		.loadMask
-	
-	
-.return	
-	rts	
 
 		
-	
-counter
-	.byte		$00
+
 	
 columnMask
 	.byte		$00
