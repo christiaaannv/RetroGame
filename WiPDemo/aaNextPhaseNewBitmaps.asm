@@ -167,29 +167,37 @@ nebro
 	jsr		initColors
 
 
-	lda		#16
-	sta		currentLevelTimeOut
-	
 
 	lda		#6
 	sta		p1Color
 	
 	lda		#4
 	sta		p2Color
+	
+	lda		#20
+	sta		aiDodgeRand				; the higher this is, the more likely ai will move right when struck
+	lda		#60
+	sta		aiBlockRand				; the higher this is, the more likely ai will block successfully
+	lda		#40
+	sta		aiStrikeRand			; the higher this is, the more likely ai will strike when in range
+	lda		#12
+	sta		currentLevelTimeOut		; the lower this is, the faster ai will make decisions
 
 	
+	
+	
 mainLoop	SUBROUTINE
-
 
 	jsr		getInput
 	sta		userPress
 	jsr		doUserAction
 
+	jsr		checkP1Struck
+	jsr		checkP2Struck
+	
 	jsr		getAINextAction
 	jsr		doAIAction
 
-	jsr		checkP1Struck
-	jsr		checkP2Struck
 
 	jsr		updateHUD
 	jsr		drawLifebars
@@ -211,11 +219,11 @@ checkP1Struck	SUBROUTINE
 
 	ldx		#0					
 
-	lda		p2XPos		
+	lda		p2XPosPrev		
 	sec
-	sbc		p1XPos
-	cmp		#5					; check if within striking range
-	bpl		.setStruckState		; if not, set p1WasStruck to 0 - false
+	sbc		p1XPosPrev
+	cmp		#4					; check if within striking range
+	bne		.setStruckState		; if not, set p1WasStruck to 0 - false
 	
 	
 .wasP1Struck	
@@ -228,23 +236,6 @@ checkP1Struck	SUBROUTINE
 	stx		p1WasStruck
 	jmp		.end
 
-	
-
-	lda		p2IsStriking
-	beq		.end
-	
-	
-	lda		p2XPos
-	sec
-	sbc		p1XPos
-	cmp		#5					; check if within striking range
-	bpl		.end
-
-	lda		p1IsBlocking
-	bne		.end
-
-	lda		#1
-	sta		p1WasStruck
 	
 
 .end
@@ -268,11 +259,11 @@ checkP2Struck	SUBROUTINE
 
 	ldx		#0					
 
-	lda		p2XPos		
+	lda		p2XPosPrev		
 	sec
-	sbc		p1XPos
-	cmp		#5					; check if within striking range
-	bpl		.setStruckState
+	sbc		p1XPosPrev
+	cmp		#4					; check if within striking range
+	bne		.setStruckState
 	
 	
 .wasP2Struck	
@@ -301,6 +292,8 @@ updateHUD		SUBROUTINE
 
 
 .updateP1HealthBar	
+	lda		p2Action				; when the animation timer resets p1Action,...
+	bne		.updateP2HealthBar
 	lda		p1WasStruck
 	beq		.updateP2HealthBar
 	
@@ -466,12 +459,13 @@ doUserAction		SUBROUTINE
 
 	lda		#0				; draw fighter graphic starting from p1 code 0
 	sta		drawCode
-	lda		p1XPos
-	sta		drawXPos
 	lda		<#RyuStandMask
 	sta		$05
 	lda		>#RyuStandMask
 	sta		$06
+
+	lda		p1XPos
+	sta		drawXPos
 	jsr		drawFighterB
 
 	
@@ -480,28 +474,19 @@ doUserAction		SUBROUTINE
 	bne		.checkBlock
 
 .doPunchAnimation
-	lda		p1XPos
-	sta		drawXPos
-	jsr		clearFighter		
 	lda		#30
 	sta		drawCode
-	lda		p1XPos
-	sta		drawXPos
 	lda		<#RyuPunchMask
 	sta		$05
 	lda		>#RyuPunchMask
 	sta		$06
 
-	jsr		drawFighterB
-
 	lda		#2
 	sta		p1Action
-	lda		#16				
-	sta		p1AnimTimer
 	
 	lda		#1
 	sta		p1IsStriking
-	rts
+	jmp		.draw
 
 
 .checkBlock
@@ -509,28 +494,20 @@ doUserAction		SUBROUTINE
 	bne		.checkKick
 	
 .doBlockAnimation	
-	lda		p1XPos
-	sta		drawXPos
-	jsr		clearFighter		
 	lda		#59
 	sta		drawCode
-	lda		p1XPos
-	sta		drawXPos
 	lda		<#RyuBlockMask
 	sta		$05
 	lda		>#RyuBlockMask
 	sta		$06
 
-	jsr		drawFighterB
-
 	lda		#3
 	sta		p1Action
-	lda		#16				
-	sta		p1AnimTimer
 
 	lda		#1
 	sta		p1IsBlocking
-	rts		
+	jmp		.draw
+
 	
 .checkKick
 	cmp		#4
@@ -538,9 +515,6 @@ doUserAction		SUBROUTINE
 
 	
 .doKickAnimation
-	lda		p1XPos
-	sta		drawXPos
-	jsr		clearFighter		
 	lda		#44
 	sta		drawCode
 	lda		p1XPos
@@ -550,16 +524,12 @@ doUserAction		SUBROUTINE
 	lda		>#RyuKickMask
 	sta		$06
 
-	jsr		drawFighterB
-
 	lda		#1
 	sta		p1Action
-	lda		#16						
-	sta		p1AnimTimer
 	
 	lda		#1
 	sta		p1IsStriking
-	rts
+	jmp		.draw
 	
 	
 .checkLeft	
@@ -567,8 +537,8 @@ doUserAction		SUBROUTINE
 	bne		.checkRight
 .tryLeft
 	lda		p1XPos
-	cmp		#$76			; is p1 at left edge of screen
-	bne		.moveLeft		; if not, move left
+	cmp		#$78			; is p1 at left edge of screen
+	bpl		.moveLeft		; if not, move left
 	rts		
 .moveLeft	
 	lda		p1XPos
@@ -587,8 +557,8 @@ doUserAction		SUBROUTINE
 	lda		p1XPos
 	clc
 	adc		#4
-	cmp		p2XPos	; is p1 at right edge of screen
-	bne		.moveRight		; if so, no movement left
+	cmp		p2XPos			; is p1 at p2?
+	bne		.moveRight		; if so, no movement right
 	rts
 .moveRight
 	lda		p1XPos
@@ -601,24 +571,28 @@ doUserAction		SUBROUTINE
 .doStepAnimation
 	lda		#15			; draw fighter graphic starting from p1 code 16
 	sta		drawCode
-	lda		p1XPos
-	sta		drawXPos
 	lda		<#RyuStepMask
 	sta		$05
 	lda		>#RyuStepMask
 	sta		$06
-	jsr		drawFighterB
-	
+
 	lda		#4
 	sta		p1Action
-	lda		#8				
+
+	
+	
+.draw
+
+	lda		p1XPos
+	sta		drawXPos
+	jsr		clearFighter
+	jsr		drawFighterB
+
+	lda		#16			
 	sta		p1AnimTimer
+
+	
 	rts
-
-
-	
-	
-	
 	
 	
 	
@@ -656,8 +630,8 @@ getAINextAction		SUBROUTINE
 	
 	
 	jsr		rand
-	cmp		#10
-	bmi		.wasntStruckLastFrame		; act as if he wasn't struck if the weighted random to move right fails
+	cmp		aiDodgeRand
+	bpl		.wasntStruckLastFrame		; act as if he wasn't struck if the weighted random to move right fails
 	jmp		.moveRight
 	
 
@@ -673,8 +647,7 @@ getAINextAction		SUBROUTINE
 
 .newRand0
 	jsr		rand
-	cmp		#60
-;	beq		.newRand0		
+	cmp		aiBlockRand
 	bpl		.notBeingStruck				; If random block fails, store state vars and act as if not being struck
 	
 	lda		#3
@@ -684,18 +657,17 @@ getAINextAction		SUBROUTINE
 .notBeingStruck
 	lda		p2XPos
 	sec
-	sbc		p1XPos				; If within striking range, random chance to strike
+	sbc		p1XPos						; If within striking range, random chance to strike
 	cmp		#5
 	bpl		.notWithinRange
 
 	jsr		rand
-	cmp		#20
-	bmi		.notWithinRange				; If random strike chance fails, act as if not within striking range
+	cmp		aiStrikeRand
+	bpl		.notWithinRange				; If random strike chance fails, act as if not within striking range
 
 .newRand1
 	jsr		rand						; Randomize punch/kick
-	cmp		#29
-	beq		.newRand1
+	cmp		#30
 	bpl		.kick
 	
 	lda		#2
@@ -712,7 +684,7 @@ getAINextAction		SUBROUTINE
 	lda		p2XPos
 	sec
 	sbc		p1XPos				; If not actually not within range, move toward p1
-	cmp		#5
+	cmp		#4
 	bpl		.moveLeft
 	
 
@@ -739,7 +711,11 @@ getAINextAction		SUBROUTINE
 	
 	
 	
-	
+; Can shorten reasonably well
+; better to do this once we decide if we are adding more characters
+; instead of loading and storing the appropriate mask every time, load it once at the beginning
+; then, knowing that each mask is 3 bytes long, add the appropriate offset to the lower half of
+; the address (will work as long as the masks don't cross a page boundary) 
 doAIAction		SUBROUTINE
 
 ;opponentAction			0 = nothing
@@ -768,13 +744,13 @@ doAIAction		SUBROUTINE
 
 	lda		#73			; draw fighter graphic starting from character code 0
 	sta		drawCode
-	lda		p2XPos
-	sta		drawXPos
 	lda		<#KenStandMask
 	sta		$05
 	lda		>#KenStandMask
 	sta		$06
 
+	lda		p2XPos
+	sta		drawXPos
 	jsr		drawFighterB	
 	rts
 	
@@ -794,22 +770,12 @@ doAIAction		SUBROUTINE
 
 	lda		#123			; draw fighter kick graphic starting from character code 134
 	sta		drawCode
-	lda		p2XPos
-	sta		drawXPos
 	lda		<#KenKickMask
 	sta		$05
 	lda		>#KenKickMask
 	sta		$06
 
-	lda		p2XPos
-	sta		drawXPos
-	jsr		clearFighter		
-
-	jsr		drawFighterB
-
-	lda		#16						
-	sta		p2AnimTimer	
-	jmp		.end
+	jmp		.draw
 
 	
 .checkPunch
@@ -821,21 +787,12 @@ doAIAction		SUBROUTINE
 	
 	lda		#106			; draw fighter punch graphic starting from character code 117
 	sta		drawCode
-	lda		p2XPos
-	sta		drawXPos
 	lda		<#KenPunchMask
 	sta		$05
 	lda		>#KenPunchMask
 	sta		$06
-	lda		p2XPos
-	sta		drawXPos
-	jsr		clearFighter		
 
-	jsr		drawFighterB
-
-	lda		#16						
-	sta		p2AnimTimer	
-	jmp		.end
+	jmp		.draw
 	
 .checkBlock
 	cmp		#3
@@ -846,22 +803,12 @@ doAIAction		SUBROUTINE
 
 	lda		#139			; draw fighter block graphic starting from character code 151
 	sta		drawCode
-	lda		p2XPos
-	sta		drawXPos
 	lda		<#KenBlockMask
 	sta		$05
 	lda		>#KenBlockMask
 	sta		$06
-	lda		p2XPos
-	sta		drawXPos
-	jsr		clearFighter		
 
-	jsr		drawFighterB
-
-	lda		#16						
-	sta		p2AnimTimer	
-	
-	jmp		.end
+	jmp		.draw
 
 	
 .checkDirection
@@ -880,10 +827,7 @@ doAIAction		SUBROUTINE
 	jsr		clearFighter			; otherwise, clear p2
 
 	
-	lda		p2XPos					; make new p2 position 1 column to left
-	tay
-	dey
-	sty		p2XPos
+	dec		p2XPos					; make new p2 position 1 column to left
 	jmp		.doStepAnimation	
 
 			
@@ -893,7 +837,7 @@ doAIAction		SUBROUTINE
 	bne		.end
 
 	lda		p2XPos
-	cmp		#$88					; is p2 at right edge of screen
+	cmp		#$89					; is p2 at right edge of screen
 	beq		.end					; if so, no movement right
 	
 	lda		p2XPos
@@ -901,37 +845,35 @@ doAIAction		SUBROUTINE
 	jsr		clearFighter			; otherwise, clear p2
 
 	
-	lda		p2XPos					; make new p2 position 1 column to left
-	tay
-	iny
-	sty		p2XPos
+	inc		p2XPos					; make new p2 position 1 column to right
 	
 	
 	
 .doStepAnimation
 	lda		#89					; draw fighter step graphic starting from character code 100
 	sta		drawCode
-	lda		p2XPos
-	sta		drawXPos
 	lda		<#KenStepMask
 	sta		$05
 	lda		>#KenStepMask
 	sta		$06
+
+
+
+.draw
+
 	lda		p2XPos
 	sta		drawXPos
 	jsr		clearFighter		
-
 	jsr		drawFighterB
-	lda		#16				
-	sta		p2AnimTimer
-	
-	
 
+	lda		#16						
+	sta		p2AnimTimer	
 
-.end
+	
 	lda		currentLevelTimeOut
 	sta		aiTimeOut
 
+.end
 	rts
 	
 	
@@ -1092,6 +1034,12 @@ clearInputBufferB		SUBROUTINE
 	
 	
 	
+; draws the fighter's current animation frame
+; drawXPos must hold the lower byte of the address in screen memory for the top left cell of the character
+; drawYPos must hold the upper byte of the address in screen memory for the top left cell of the character (future - jumpn')
+; drawCode must hold the character code to begin printing from (depends on the fighter's animation frame)
+; zero page $05 and $06 must hold the address of the draw mask to use for the fighter graphic
+
 
 drawFighterB		SUBROUTINE
 
@@ -1360,10 +1308,10 @@ irqHandler
 	iny
 	sty		ram_00
 	cpy		#6
-	beq		.toggleSounds
+	beq		.beginMusic
 	jmp		.skipMusic
 
-.toggleSounds	
+.beginMusic	
 	lda		#0
 	sta		ram_00		; reset the counter
 	
@@ -1445,9 +1393,21 @@ irqHandler
 	and		#$20		; test if the 5th bit was set (timer 2 time out flag)
 	beq		.notTimer
 
+	
+	dec		updateXPosPrevs				
+	bne		.decP1AnimTimer
+	
+	lda		#8
+	sta		updateXPosPrevs
+	
+	lda		p1XPos
+	sta		p1XPosPrev
+	lda		p2XPos
+	sta		p2XPosPrev
 
 	
-; Reset animations in progress to default stance if animation timer reaches 0
+; Reset animations in progress to default stance if their animation timer reaches 0
+; decrement animTimers each timer interrupt
 
 .decP1AnimTimer	
 	lda		p1Action
@@ -1520,6 +1480,7 @@ timer
 	
 
 p1XPos				.byte	$00
+p1XPosPrev			.byte	$00
 p1XPosColor			.byte	$00
 p1YPos				.byte	$00
 p1Action			.byte	$00
@@ -1529,6 +1490,7 @@ p1Color				.byte	$00
 
 p2DrawCodesStart	.byte	#73
 p2XPos				.byte	$00
+p2XPosPrev			.byte	$00
 p2XPosColor			.byte	$00
 p2YPos				.byte	$00
 p2Action			.byte	$00
@@ -1537,10 +1499,15 @@ p2Color				.byte	$00
 
 
 aiTimeOut			.byte	$00
+aiDodgeRand			.byte	$00
+aiBlockRand			.byte	$00
+aiStrikeRand		.byte	$00
 
 drawXPos			.byte	$00
 drawCode			.byte	$00
 drawColor			.byte	$00
+
+updateXPosPrevs		.byte	$00
 
 
 ram_00				.byte	$00		; used in irq handler, volatile
@@ -1549,11 +1516,11 @@ ram_02				.byte	$00		; used in irq handler, volatile
 ram_03				.byte	$00		; used in drawFighter, usable in other routines
 ram_04				.byte	$00		; used in drawFighter, usable in other routines
 ram_05				.byte	$00		; used in drawFighter, usable in other routines
-ram_06				.byte	$00		; not yet used ...
-ram_07				.byte	$00
-ram_08				.byte	$00
-ram_09				.byte	$00
-ram_10				.byte	$00
+ram_06				.byte	$00		; used in drawStreetFighterBanner, usable in other routines
+ram_07				.byte	$00		; used in drawStreetFighterBanner, usable in other routines
+ram_08				.byte	$00		; used in drawStreetFighterBanner, usable in other routines
+ram_09				.byte	$00		; used in drawStreetFighterBanner, usable in other routines
+ram_10				.byte	$00		; not yet used ...
 ram_11				.byte	$00
 ram_12				.byte	$00
 ram_13				.byte	$00
@@ -1621,9 +1588,6 @@ startScreenLayout	; jump table for skipping to the next appropriate grapic in ST
 
 
 
-; make sure none of these cross a page boundary (unless aligned such that one mask ends right at a boundary)
-; zero page memory is used to reference these masks and inc $01 will wrap around to $0 if a page is crossed.
-
 	
 	ORG		#5951 ; -> page boundaries: 5888 [page] 6144
 	
@@ -1660,7 +1624,10 @@ V
 	.byte	#32, #32, #32, #32, #95, #105, #32, #32, #32, #32
 	
 
-	; [bitmask for columns 1 & 2], [bitmask for columns 1 & 2], [bitmask for columns 1 & 2] 
+	; make sure none of these cross a page boundary (unless aligned such that one mask ends right at a boundary)
+	; zero page memory is used to reference these masks and inc $01 will wrap around to $0 if a page is crossed.
+
+	; [bitmask for rows 1 & 2], [bitmask for rows 3 & 4], [bitmask for rows 5 & 6] 
 	; the bitmask is used to draw empty cells where the fighter graphic had one, only non empty cells are stored
 	; 30 bytes
 
@@ -1698,85 +1665,89 @@ KenBlockMask
 	
 	ORG		#6144		; forces our fighter graphics to begin where Vic is obtaining its character information from (character code 0 refers to the first 8 bytes starting at 6144, and so on)
 
-RyuStand		; code 0
+RyuStand		; starts at code 0
 	.byte	$00, $00, $00, $01, $01, $01, $01, $7f, $3f, $c0, $80, $00, $00, $ff, $ff, $ff, $80, $60, $20, $20, $20, $e0, $e0, $e0 
 	.byte	$7f, $07, $0f, $1d, $18, $01, $02, $02, $00, $1c, $06, $86, $80, $80, $4f, $40, $20, $60, $a0, $a0, $20, $20, $20, $70 
 	.byte	$06, $08, $08, $18, $3c, $3f, $39, $39, $20, $10, $1f, $80, $80, $80, $80, $80, $c8, $8c, $04, $0e, $9e, $fe, $ce, $4e 
 	.byte	$39, $19, $0d, $01, $01, $01, $01, $01, $80, $80, $ff, $28, $28, $08, $00, $08, $5e, $de, $dc, $40, $40, $40, $40, $40 
 	.byte	$02, $06, $0e, $1b, $31, $40, $40, $7f, $08, $08, $14, $14, $e3, $22, $22, $e3, $70, $10, $10, $3c, $e6, $01, $01, $ff  
 
-
-
-RyuStep			; code 15
+RyuStep			; starts at code 15
 	.byte	$00, $00, $00, $01, $01, $01, $01, $7f, $3f, $c0, $80, $00, $00, $ff, $ff, $ff, $80, $60, $20, $20, $20, $e0, $e0, $e0 
 	.byte	$7f, $03, $3f, $3d, $00, $00, $00, $00, $00, $1c, $06, $86, $80, $80, $cf, $40, $20, $60, $a0, $a0, $20, $20, $20, $60 
 	.byte	$00, $00, $01, $01, $01, $01, $03, $03, $40, $20, $ef, $00, $00, $00, $c0, $f0, $c0, $80, $78, $04, $04, $8c, $9c, $fe 
 	.byte	$03, $03, $03, $01, $01, $00, $00, $00, $90, $bf, $b6, $ba, $f4, $88, $80, $82, $ce, $ce, $5e, $5e, $7c, $70, $10, $10 
 	.byte	$00, $00, $01, $01, $02, $02, $02, $03, $82, $82, $82, $c3, $7d, $03, $01, $ff, $10, $10, $10, $3c, $e6, $01, $01, $ff 
 
-
-
-RyuPunch		; code 30
+RyuPunch		; starts at code 30
 	.byte	$00, $00, $00, $00, $00, $00, $00, $1f, $0f, $30, $20, $40, $40, $7f, $7f, $ff, $e0, $18, $08, $08, $08, $f8, $f8, $f8
 	.byte	$1f, $01, $03, $07, $06, $00, $00, $00, $c0, $c7, $c1, $61, $20, $20, $33, $10, $08, $18, $a8, $a8, $08, $08, $c8, $18
 	.byte	$10, $08, $1c, $23, $60, $f0, $fc, $e4, $30, $38, $5f, $80, $04, $07, $04, $04, $04, $0e, $ff, $07, $07, $ef, $1f, $1e
 	.byte	$ec, $ec, $6f, $7d, $11, $10, $20, $20, $04, $04, $fc, $44, $44, $44, $04, $84
 	.byte	$20, $20, $60, $71, $9f, $80, $80, $ff, $c4, $c4, $a2, $39, $1f, $90, $50, $df, $00, $00, $00, $00, $e0, $10, $08, $f8 
-
-RyuKick			; code 44
+	
+RyuKick			; starts at code 44
 	.byte	$00, $03, $02, $04, $04, $07, $07, $ff, $fc, $02, $01, $01, $01, $ff, $ff, $ff 
 	.byte	$fc, $1c, $3c, $76, $62, $06, $09, $01, $00, $70, $1a, $1a, $00, $00, $3c, $01, $80, $80, $80, $87, $8f, $bf, $a7, $67, $00, $00, $00, $00, $03, $05, $09, $11 
 	.byte	$01, $06, $08, $08, $18, $3c, $3f, $39, $c1, $3e, $00, $00, $80, $80, $c0, $e0, $6f, $af, $3e, $21, $12, $1c, $38, $70, $31, $59, $89, $09, $09, $1f, $20, $c0 
 	.byte	$39, $39, $19, $0f, $00, $00, $00, $00, $a0, $9f, $8f, $8b, $0a, $0a, $08, $08, $e1, $83, $04, $88, $90, $a0, $40, $40
 	.byte	$08, $08, $08, $08, $0f, $08, $08, $0f, $40, $40, $40, $40, $e0, $10, $08, $f8
 
-
-RyuBlock		; code 59
+RyuBlock		; starts at code 59
 	.byte	$01, $06, $04, $08, $08, $0f, $0f, $ff, $fc, $03, $01, $01, $01, $ff, $ff, $ff
 	.byte	$f8, $38, $78, $ec, $c4, $04, $06, $02, $01, $e3, $35, $35, $01, $01, $79, $03, $00, $3e, $76, $77, $77, $67, $7f, $7f 
 	.byte	$02, $01, $03, $04, $08, $08, $08, $04, $07, $06, $8b, $70, $00, $00, $1f, $e0, $d7, $f2, $c2, $02, $0c, $10, $e0, $80 
 	.byte	$06, $02, $03, $02, $02, $02, $04, $04, $00, $00, $ff, $28, $28, $08, $00, $10, $80, $80, $80, $80, $80, $80, $80, $80 
 	.byte	$04, $04, $0c, $0e, $13, $10, $10, $1f, $10, $18, $1c, $27, $e3, $12, $0a, $fb, $80, $80, $40, $20, $fc, $02, $01, $ff 	
 	
-KenStand		; code 73
+	
+	
+	
+	
+KenStand		; starts at code 73
 	.byte	$01, $02, $02, $06, $0c, $18, $18, $18, $ff, $01, $00, $00, $00, $00, $00, $00, $00, $00, $e0, $e0, $30, $10, $10, $08
 	.byte	$1a, $1d, $08, $0e, $05, $05, $05, $04, $5a, $a5, $01, $1d, $30, $30, $30, $00, $08, $08, $08, $88, $88, $88, $88, $88
 	.byte	$04, $06, $0b, $1b, $23, $39, $c9, $c7, $02, $3c, $01, $81, $fe, $22, $22, $24, $98, $e8, $0c, $12, $22, $2e, $29, $39
 	.byte	$cf, $d3, $db, $cb, $7f, $3f, $02, $06, $28, $10, $00, $ff, $05, $05, $01, $00, $39, $39, $39, $f9, $3d, $3f, $08, $08
 	.byte	$04, $0c, $3c, $63, $e0, $80, $80, $ff, $0c, $0c, $12, $f3, $21, $21, $21, $e1, $08, $0c, $0f, $f1, $01, $00, $00, $ff, $00, $00, $00, $80, $c0, $40, $40, $c0
 
-KenStep			; code 89
+KenStep			; starts at code 89
 	.byte	$07, $08, $08, $18, $30, $60, $60, $60, $fc, $04, $03, $03, $00, $00, $00, $00, $00, $00, $80, $80, $c0, $40, $40, $20 
 	.byte	$69, $76, $20, $38, $14, $14, $14, $10, $68, $94, $04, $76, $c2, $c2, $c2, $02, $20, $20, $20, $20, $20, $20, $20, $20 
 	.byte	$00, $00, $00, $00, $00, $00, $03, $03, $10, $18, $2c, $6e, $8f, $e4, $24, $1c, $0a, $f3, $04, $06, $f9, $98, $9b, $92, $60, $40, $60, $80, $00, $80, $80, $40 
 	.byte	$03, $03, $03, $03, $01, $00, $00, $00, $3c, $4c, $6c, $2f, $fc, $fc, $08, $18, $be, $5e, $1f, $ff, $3e, $1f, $1f, $01, $40, $40, $40, $40, $40, $80, $00, $00 
 	.byte	$00, $00, $00, $01, $03, $02, $02, $03, $10, $30, $f1, $8f, $87, $04, $04, $ff, $c1, $c1, $21, $df, $81, $01, $01, $ff
 
-KenPunch		; code 106
+KenPunch		; starts at code 106
 	.byte	$03, $04, $0c, $18, $30, $34, $3b, $10, $fe, $01, $01, $00, $00, $b4, $4a, $02, $00, $80, $c0, $60, $20, $10, $10, $10 
 	.byte	$00, $00, $00, $00, $00, $00, $78, $ff, $1c, $0a, $0a, $0a, $08, $06, $07, $8d, $3b, $61, $61, $61, $05, $7b, $02, $fd, $10, $10, $10, $30, $c0, $00, $00, $80 
 	.byte	$c0, $c8, $88, $7e, $03, $00, $00, $00, $f0, $00, $20, $10, $c3, $3f, $07, $06, $88, $88, $90, $e1, $fe, $fd, $38, $30, $40, $20, $10, $08, $04, $04, $88, $90 
 	.byte	$07, $04, $07, $04, $04, $04, $04, $04, $ff, $00, $ff, $14, $14, $04, $30, $28, $e0, $20, $e0, $20, $20, $20, $20, $20 
 	.byte	$04, $04, $08, $1f, $70, $c0, $80, $ff, $28, $24, $44, $c7, $48, $50, $50, $df, $10, $10, $10, $f0, $10, $10, $10, $f0  
 
-KenKick			; code 123
+KenKick			; starts at code 123
 	.byte	$00, $00, $00, $01, $03, $03, $03, $01, $3f, $40, $c0, $80, $00, $4b, $b4, $00, $e0, $18, $1c, $06, $02, $41, $a1, $21 
 	.byte	$00, $00, $00, $00, $c0, $a0, $90, $88, $01, $00, $00, $00, $f0, $fc, $e2, $e1, $c3, $a6, $a6, $a6, $80, $67, $70, $df, $b1, $11, $11, $13, $5c, $b0, $20, $e0 
 	.byte	$8c, $9a, $91, $90, $f0, $08, $04, $03, $f7, $f4, $7c, $84, $48, $38, $1c, $0e, $12, $24, $28, $30, $01, $01, $03, $07, $10, $10, $10, $10, $18, $3c, $fc, $9c 
 	.byte	$87, $81, $40, $20, $12, $0a, $06, $02, $05, $f9, $f1, $d1, $50, $50, $10, $10, $9c, $9c, $98, $f0, $00, $00, $00, $00 
 	.byte	$02, $02, $02, $02, $07, $08, $10, $1f, $10, $10, $10, $10, $f0, $10, $10, $f0
 
-KenBlock		; code 139
+KenBlock		; starts at code 139
 	.byte	$00, $00, $00, $00, $01, $31, $79, $e9, $1f, $20, $60, $c0, $80, $a5, $da, $00, $f0, $18, $1c, $06, $02, $a1, $51, $22
 	.byte	$e9, $c8, $f8, $f8, $e8, $78, $40, $44, $c3, $a6, $a6, $a6, $80, $67, $70, $df, $b2, $12, $12, $16, $5c, $98, $10, $ec 
 	.byte	$23, $20, $20, $1c, $03, $00, $00, $00, $82, $02, $02, $07, $8f, $ff, $39, $31, $22, $21, $40, $08, $f0, $e8, $c4, $85, $00, $00, $80, $40, $40, $40, $80, $00 
 	.byte	$1f, $10, $1f, $10, $10, $20, $21, $42, $fe, $02, $fe, $a2, $a2, $22, $82, $42
 	.byte	$00, $00, $01, $01, $07, $0c, $08, $0f, $42, $84, $04, $fc, $04, $05, $05, $fd, $41, $21, $21, $7f, $81, $01, $01, $ff
 
+	
+	
+	
 emptySpace		; code 154										
 	.byte	$00, $00, $00, $00, $00, $00, $00, $00
 
-lifebarCodes	; code 155
+	
+	
+lifeBarGraphics	; code 155
 	.byte	$7f, $80, $80, $80, $80, $80, $80, $7f 
 	.byte	$7f, $80, $bb, $bb, $bb, $bb, $80, $7f 
 	.byte	$ff, $00, $00, $00, $00, $00, $00, $ff 

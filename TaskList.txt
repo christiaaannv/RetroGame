@@ -45,6 +45,10 @@
 8.  Create strike sounds and possibly animations (blood flying)
 
 
+9. 	Fix Ryu bug, kicking at left edge of screen make him pop through to other side
+10.	AI fix - Ken moves right too often when ryu stands still
+
+
 
 It would probably be a good idea to have a punch, kick, block, and struck animation for the opponent and our character, develop some very basic opponent AI, develop a preliminary HUD, and map the RAM locations as precisely and thoroughly as possible for the first project update and worry about the start screen, additional animations,  AI tweaking, a more advanced HUD and stuff like that for the final product.
 
