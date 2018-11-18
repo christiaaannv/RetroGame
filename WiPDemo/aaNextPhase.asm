@@ -1095,11 +1095,13 @@ clearInputBufferB		SUBROUTINE
 	
 	
 
-colorFighter	SUBROUTINE
+drawFighters		SUBROUTINE
 
-	
+	lda		p1XPos
+	sta		drawXPos
 
-
+	lda		p1DrawCode
+	sta		drawCode
 	
 	
 
@@ -1112,12 +1114,17 @@ colorFighter	SUBROUTINE
 ; drawXPos must hold the lower byte of the address in screen memory for the top left cell of the character
 ; drawYPos must hold the upper byte of the address in screen memory for the top left cell of the character
 ; drawCode must hold the character code to begin printing from (depends on the fighter's animation frame)
-; zero page $05 and $06 must hold the address of the draw mask to use for the 
+; zero page $05 and $06 must hold the address of the draw mask to use for the fighter graphic
+
+
+; zero page $01 and $02 are loaded with the screen memory address for coloring the fighter graphic
+; zero page $07 and $08 are loaded with the color control address for coloring the fighter graphic
+
 
 drawFighter	 SUBROUTINE	
 
-	lda		drawCode
-	cmp		#82
+	lda		drawCode		; use the current draw code to choose character color
+	cmp		#82				; might not work so well with more than two characters
 	bpl		.itsP2
 	lda		p1Color
 	sta		drawColor
@@ -1374,8 +1381,8 @@ drawStreetFighterBanner		SUBROUTINE
 
 		
 		lda		<#SCREENMEMORY2				; store the address of screen memory in zero page
-		sta		$03
-		lda		>#SCREENMEMORY2
+		sta		$03							; this is done outside of the loop because the V is drawn in the bottom
+		lda		>#SCREENMEMORY2				; of the screen and the offset from SCREENMEMORY1 is greater than 255
 		sta		$04
 		jmp		.outerTop
 
@@ -1711,6 +1718,8 @@ V
 	.byte	#32, #32, #32, #32, #95, #105, #32, #32, #32, #32
 	
 
+	; [number of non blank cells in graphic], [number of non blank cells in column], [bitmask for column]
+	; the bitmask is used to draw empty cells where the fighter graphic had one, only non empty cells are stored
 RyuStandMask
 	.byte		#16, #5, $7C, #5, $7C, #5, $7C, #1, $04
 
