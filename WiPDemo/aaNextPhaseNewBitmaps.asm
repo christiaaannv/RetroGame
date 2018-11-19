@@ -211,7 +211,7 @@ mainLoop	SUBROUTINE
 
 
 	
-	
+; Can probably combine checkP1Struck and checkP2Struck by adding a little something something.
 checkP1Struck	SUBROUTINE
 
 	lda		p2IsStriking		; if p2 is not striking, don't update the p2WasStruck state
