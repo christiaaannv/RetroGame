@@ -54,9 +54,17 @@ IRQHIGH					.equ	$0315
 
 P1LIFEBARSTART			.equ	#7680	
 P2LIFEBARSTART			.equ	#7695
+P1LIFEBARCOLORSTART		.equ	#38400
+P2LIFEBARCOLORSTART		.equ	#38415
 
-P1LIFEBARSTARTCOLOR		.equ	#38400
-P2LIFEBARSTARTCOLOR		.equ	#38415
+P1ROUNDWINSSTART		.equ	#7746	
+P2ROUNDWINSSTART		.equ	#7761
+P1ROUNDWINSCOLORSTART	.equ	#38466
+P2ROUNDWINSCOLORSTART	.equ	#38481
+
+
+PRINTROUNDSTART			.equ	#7841
+PRINTROUNDCOLORSTART	.equ	#38561
 
 
 DEBUGSCR1				.equ	$1E00
@@ -165,7 +173,8 @@ nebro
 	jsr		fillScreen
 
 	jsr		initColors
-
+	jsr		initLifebars
+	jsr		initRoundIndicators
 
 
 	lda		#6
@@ -185,8 +194,21 @@ nebro
 
 	
 	
+	lda		#1
+	sta		currentRound
+	sta		drawRoundBanner
+	
 	
 mainLoop	SUBROUTINE
+
+	lda		drawRoundBanner
+	beq		.skip
+
+	jsr		drawCurrentRound
+
+	
+.skip
+	jsr		checkRoundWin
 
 	jsr		getInput
 	sta		userPress
@@ -202,16 +224,26 @@ mainLoop	SUBROUTINE
 	jsr		updateHUD
 	jsr		drawLifebars
 	
+
+	jsr		checkMatchWin
+
+	
 	jsr		clearInputBufferB
 	
 	jmp		mainLoop
 
 
 	
+	
+	
+	
+	
+	
 
 
 	
 ; Can probably combine checkP1Struck and checkP2Struck by adding a little something something.
+; RAM values for attackerIsStriking, defenderIsBlocking
 checkP1Struck	SUBROUTINE
 
 	lda		p2IsStriking		; if p2 is not striking, don't update the p2WasStruck state
@@ -285,16 +317,139 @@ checkP2Struck	SUBROUTINE
 	
 	
 	
+checkRoundWin	SUBROUTINE
+	
+.checkP1
+	lda		p1LifeBarTicks
+	bne		.checkP2
+
+	ldx		#0
+.top1
+	lda		p2RoundWins,x
+	inx
+	cmp		#1
+	beq		.top1
+
+	dex
+	lda		#1
+	sta		p2RoundWins,x
+	sta		drawRoundBanner
+	jsr		initLifebars
+	jmp		.end
+
+	
+.checkP2
+	lda		p2LifeBarTicks
+	bne		.end
+
+	ldx		#0
+.top2
+	lda		p1RoundWins,x
+	inx
+	cmp		#1
+	beq		.top2
+
+	dex
+	lda		#1
+	sta		p1RoundWins,x
+	sta		drawRoundBanner
+	jsr		initLifebars
+
+	
+.end
+	rts
+	
+	
+
+
+
+
+
+
+checkMatchWin		SUBROUTINE
+
+	ldx		#3
+	lda		p1RoundWins,x
+	beq		.checkP2Win
+
+	
+	lda		#1
+	sta		p1WonMatch
+	sta		currentRound
+	jsr		initRoundIndicators
+	jsr		initLifebars
+	jsr		wait
+	jsr		wait
+	jmp		.end
+
+	
+.checkP2Win	
+	ldx		#3
+	lda		p2RoundWins,x
+	beq		.end
+
+	lda		#1
+	sta		p2WonMatch
+	sta		currentRound
+	jsr		initRoundIndicators
+	jsr		initLifebars
+	jsr		wait
+	jsr		wait
+
+	
+.end
+	rts
+
+
+
+	
+; initialize life bars to full health for both players
+initLifebars		SUBROUTINE	
+
+	lda		#1
+	ldy		#6
+.loop1
+	
+	sta		p1LifeBarTicks,y
+	sta		p2LifeBarTicks,y
+	dey
+	bpl		.loop1
+
+	
+	rts
+	
+
+
+; initialize round win indicators to 0 rounds won for both players	
+initRoundIndicators		SUBROUTINE
+	
+	
+	lda		#0
+	ldy		#3
+.loop2
+	
+	sta		p1RoundWins,y
+	sta		p2RoundWins,y
+	dey
+	bpl		.loop2
+	
+	
+	rts
+	
+	
+
+
 	
 	
 	
+; update the HUD with respect to the current game state	
 updateHUD		SUBROUTINE
 
 
-.updateP1HealthBar	
-	lda		p2Action				; when the animation timer resets p1Action,...
+.updateP1HealthBar
+	lda		p2Action				; when the animation timer resets p2Action,...
 	bne		.updateP2HealthBar
-	lda		p1WasStruck
+	lda		p1WasStruck				; check if p1 blocked or dodged during that action (if it was a strike)
 	beq		.updateP2HealthBar
 	
 	ldy		#6
@@ -321,9 +476,9 @@ updateHUD		SUBROUTINE
 	
 .updateP2HealthBar	
 	lda		p1Action				; when the animation timer resets p1Action,...
-	bne		.end
+	bne		.roundStatistics
 	lda		p2WasStruck				; ...update p2 health if p2Was struck.
-	beq		.end
+	beq		.roundStatistics
 
 	
 	ldy		#6
@@ -340,14 +495,61 @@ updateHUD		SUBROUTINE
 	lda		emptySpaceCode
 	sta		P2LIFEBARSTART,y
 	
-	jmp		.end
+	jmp		.roundStatistics
 
 .skip2	
 	dey
 	bpl		.loop2
 	
 
+	
+.roundStatistics
 
+	
+	ldx		#3
+	ldy		#6
+.loop3
+	lda		p1RoundWins,x
+	beq		.empty1
+
+	lda		#167
+	jmp		.draw1
+	
+.empty1
+	lda		#166
+
+.draw1
+	sta		P1ROUNDWINSSTART,y
+	dey
+	dey
+	dex
+	bpl		.loop3
+
+	
+	
+.p2Stats
+	ldx		#3
+	ldy		#0
+.loop4
+	lda		p2RoundWins,x
+	beq		.empty2
+
+	lda		#167
+	jmp		.draw2
+	
+.empty2
+	lda		#166
+
+.draw2
+	sta		P2ROUNDWINSSTART,y
+	iny
+	iny
+	dex
+	bpl		.loop4
+
+
+
+	
 	
 .end	
 	rts
@@ -369,11 +571,22 @@ initColors		SUBROUTINE
 	lda		#5						; set the life bars to green
 .loop1
 	
-	sta		P1LIFEBARSTARTCOLOR,y
-	sta		P2LIFEBARSTARTCOLOR,y
+	sta		P1LIFEBARCOLORSTART,y
+	sta		P2LIFEBARCOLORSTART,y
 	
 	dey
 	bpl		.loop1
+
+
+	ldy		#6
+	lda		#7						; set the round indicators to yellow
+.loop2
+	
+	sta		P1ROUNDWINSCOLORSTART,y
+	sta		P2ROUNDWINSCOLORSTART,y
+	
+	dey
+	bpl		.loop2
 	
 	
 
@@ -411,7 +624,7 @@ drawLifebars	 SUBROUTINE
 	sta		P1LIFEBARSTART,y		; store in screen memory
 
 	lda		#157					; load the middle lifebar graphic code (empty version)
-	adc		p2LifeBarTicks,y	; add the number of life ticks remaining in that section
+	adc		p2LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P2LIFEBARSTART,y		; store in screen memory
 	
 	iny
@@ -425,7 +638,7 @@ drawLifebars	 SUBROUTINE
 	sta		P1LIFEBARSTART,y		; store in screen memory
 					
 	lda		#159					; load the right lifebar graphic code (empty version)
-	adc		p2LifeBarTicks,y	; add the number of life ticks remaining in that section
+	adc		p2LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P2LIFEBARSTART,y		; store in screen memory
 
 					
@@ -946,7 +1159,9 @@ fillScreen		SUBROUTINE
 	
 	
 	
-	
+; don't really need this routine
+; just jsr GETIN and use the value provided to determine actions
+
 getInput		SUBROUTINE		; loads a with..
 								; 0 -> down (punch)
 								; 1 -> s (block)
@@ -1168,31 +1383,6 @@ clearFighter	 SUBROUTINE
 	
 	
 	
-wait				SUBROUTINE
-	lda		ACR
-	and		#$DF		; set timer to operate in 1 shot mode		
-	sta		ACR
-	
-	ldy		#3
-
-.top	
-	lda		#$00
-	sta		T2LOW		; store low order byte of timer	countdown	
-	lda		#$FF
-	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
-		
-.loop 
-    lda		T2HIGH
-	and		#$FF
-    bne		.loop
-
-	dey
-	bne		.top
-	
-	rts
-	
-	
-	
 	
 	
 drawStreetFighterBanner		SUBROUTINE	
@@ -1295,7 +1485,107 @@ drawStreetFighterBanner		SUBROUTINE
 	rts
 
 
+	
+	
+	
+	
+	
+	
+drawCurrentRound			SUBROUTINE
 
+
+	ldx		#161
+	ldy		#0
+	sty		drawRoundBanner
+	
+.loop
+	txa
+	sta		PRINTROUNDSTART,y
+	lda		#2
+	sta		PRINTROUNDCOLORSTART,y
+
+	iny
+	inx
+	cpy		#5
+	bne		.loop
+
+
+	lda		currentRound
+	clc
+	adc		#168
+	
+	ldy		#7
+	sta		PRINTROUNDSTART,y
+	lda		#2
+	sta		PRINTROUNDCOLORSTART,y
+	
+	
+	inc 	currentRound
+	jsr		wait
+	jsr		wait
+	jsr		wait
+	jsr		wait
+	jsr		wait
+	jsr		wait
+	jsr		wait
+	jsr		wait
+	jsr		eraseCurrentRound
+
+	
+
+	rts
+
+
+	
+	
+
+	
+	
+eraseCurrentRound			SUBROUTINE
+
+	lda		emptySpaceCode
+	ldy		#8
+	
+.loop
+	sta		PRINTROUNDSTART,y
+
+	dey
+	bpl		.loop
+
+	
+	rts
+
+	
+
+	
+	
+	
+wait				SUBROUTINE
+	lda		ACR
+	and		#$DF		; set timer to operate in 1 shot mode		
+	sta		ACR
+	
+	ldy		#3
+
+.top	
+	lda		#$00
+	sta		T2LOW		; store low order byte of timer	countdown	
+	lda		#$FF
+	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
+		
+.loop 
+    lda		T2HIGH
+	and		#$FF
+    bne		.loop
+
+	dey
+	bne		.top
+	
+	rts
+	
+	
+	
+	
 	
 	
 	
@@ -1486,7 +1776,7 @@ p1YPos				.byte	$00
 p1Action			.byte	$00
 p1AnimTimer			.byte	$00
 p1Color				.byte	$00
-
+p1Score				.byte	$00
 
 p2DrawCodesStart	.byte	#73
 p2XPos				.byte	$00
@@ -1496,7 +1786,7 @@ p2YPos				.byte	$00
 p2Action			.byte	$00
 p2AnimTimer			.byte	$00
 p2Color				.byte	$00
-
+p2Score				.byte	$00
 
 aiTimeOut			.byte	$00
 aiDodgeRand			.byte	$00
@@ -1506,6 +1796,11 @@ aiStrikeRand		.byte	$00
 drawXPos			.byte	$00
 drawCode			.byte	$00
 drawColor			.byte	$00
+
+currentRound		.byte	$00
+roundsPerMatch		.byte	$00
+drawRoundBanner		.byte	$00
+
 
 updateXPosPrevs		.byte	$00
 
@@ -1540,12 +1835,13 @@ p1HitPoints			.byte	$00
 p1IsStriking		.byte	$00
 p1IsBlocking		.byte	$00
 p1WasStruck			.byte	$00
+p1WonMatch			.byte	$00
 
 p2HitPoints			.byte	$00
 p2IsStriking		.byte	$00
 p2WasStruck			.byte	$00
 p2IsBlocking		.byte	$00
-
+p2WonMatch			.byte	$00
 
 aiDir				.byte	$00
 currentLevelTimeOut	.byte	$00		
@@ -1554,6 +1850,12 @@ distanceApart		.byte	$00
 userPress			.byte	$00
 
 
+p1RoundWins
+	.byte		#0, #0, #0, #0
+	
+p2RoundWins
+	.byte		#0, #0, #0, #0
+	
 
 p1LifeBarTicks
 	.byte		#1, #1, #1, #1, #1, #1, #1		; change to use bit mask instead
@@ -1564,7 +1866,7 @@ p2LifeBarTicks
 
 	
 startGameString
-    .byte  #16, #18, #5, #19, #19, #32, #40, #19, #41, #32, #20, #15, #32, #6, #9, #7, #8, #20, #33, #33
+    .byte	#16, #18, #5, #19, #19, #32, #40, #19, #41, #32, #20, #15, #32, #6, #9, #7, #8, #20, #33, #33
 	
 	
 startScreenLayout	; jump table for skipping to the next appropriate grapic in STREET FIGHTER graphics
@@ -1754,16 +2056,37 @@ lifeBarGraphics	; code 155
 	.byte	$ff, $00, $bb, $bb, $bb, $bb, $00, $ff 
 	.byte	$fe, $01, $01, $01, $01, $01, $01, $fe 
 	.byte	$fe, $01, $bb, $bb, $bb, $bb, $01, $fe 
+
+
 	
 
 	
+ROUND 			; codes 161 through 165 
+	.byte	$00, $fc, $82, $82, $fc, $84, $82, $82 
+	.byte	$00, $38, $44, $82, $82, $82, $44, $38 
+	.byte	$00, $82, $82, $82, $82, $82, $44, $38 
+	.byte	$00, $82, $c2, $a2, $92, $8a, $86, $82 
+	.byte	$00, $f8, $84, $82, $82, $82, $84, $f8 
+
+ballGraphics 	; codes 166, 167
+	.byte	$3c, $42, $81, $81, $81, $81, $42, $3c 
+	.byte	$3c, $7e, $ff, $ff, $ff, $ff, $7e, $3c 
+
+digits 			; codes 168 through 177
+	.byte	$00, $18, $24, $42, $42, $42, $24, $18 
+	.byte	$00, $08, $18, $78, $08, $08, $08, $08 
+	.byte	$00, $3c, $42, $44, $08, $10, $20, $7e 
+	.byte	$00, $3c, $46, $02, $0c, $02, $46, $3c 
+	.byte	$00, $0c, $14, $24, $7e, $04, $04, $04 
+	.byte	$00, $7e, $40, $5c, $62, $02, $42, $3c 
+	.byte	$00, $3c, $42, $40, $7c, $42, $42, $3c 
+	.byte	$00, $7e, $02, $04, $08, $10, $20, $40 
+	.byte	$00, $3c, $42, $42, $3c, $42, $42, $3c
+	.byte	$00, $3c, $42, $42, $3e, $02, $42, $3c 	
 	
 	
 	
-	
-	
-	
-	
+; code 178	
 	
 	
 	
