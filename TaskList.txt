@@ -58,7 +58,7 @@
 
 15. Some background image graphic data
 
-16. 
+16. Energy bars for blocking? Blocking repeatedly makes you invincible.
 
 
 

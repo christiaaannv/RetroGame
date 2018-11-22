@@ -852,7 +852,6 @@ doUserAction		SUBROUTINE
 	lda		#16			
 	sta		p1AnimTimer
 
-	
 	rts
 	
 	
