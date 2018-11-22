@@ -40,13 +40,25 @@
 	a.	Character and opponent health bars
 	b.	Timer?
 	c.	Score
-	d.	These are important variables to map to RAM in point 4.
+
 	
 8.  Create strike sounds and possibly animations (blood flying)
 
 
-9. 	Fix Ryu bug, kicking at left edge of screen make him pop through to other side
+9. 	Fix Ryu bug, kicking at left edge of screen make him pop through to other side(Done)
 10.	AI fix - Ken moves right too often when ryu stands still
+
+11. Letters for spelling the names of all characters for match win banners
+
+12. Animation frames for a character that was struck and flying kicks
+
+13. One more character - set of animation frames
+
+14. Two player model
+
+15. Some background image graphic data
+
+16. 
 
 
 
