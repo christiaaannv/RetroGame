@@ -54,7 +54,7 @@
 
 13. One more character - set of animation frames
 
-14. Two player model
+14. Two player mode
 
 15. Some background image graphic data
 

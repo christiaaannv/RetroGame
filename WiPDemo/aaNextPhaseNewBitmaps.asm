@@ -93,6 +93,10 @@ DEBUGSCRD				.equ	$1E1C
 
 main
 
+;	lda		#128
+;	sta		$028A
+	
+
 	ldx		#$08
 	stx		$900f		; set background color to black and border color to cyan -- see appendices for codes and memory locations to store in 
 
@@ -118,7 +122,7 @@ main
 
 
 	; Init Music
-	lda		#$51		; D1 with high bit off
+	lda		#$51		; D1 with high bit off (gets toggled on/off in irq)
 	sta		SPEAKER2
 
 
@@ -131,6 +135,10 @@ main
 	lda		#0
 	sta		ram_01
 
+	lda		#6
+	sta		ram_00
+	; Finish Init Music
+
 	
 	lda		#32
 	sta		emptySpaceCode
@@ -139,6 +147,7 @@ main
 	jsr		fillScreen
 
 	jsr		drawStreetFighterBanner
+
 	
 nebro
 	jsr		getInput
@@ -173,7 +182,6 @@ nebro
 	jsr		fillScreen
 
 	jsr		initColors
-	jsr		initLifebars
 	jsr		initRoundIndicators
 
 
@@ -210,6 +218,8 @@ mainLoop	SUBROUTINE
 .skip
 	jsr		checkRoundWin
 
+
+	jsr		clearInputBufferB
 	jsr		getInput
 	sta		userPress
 	jsr		doUserAction
@@ -228,7 +238,6 @@ mainLoop	SUBROUTINE
 	jsr		checkMatchWin
 
 	
-	jsr		clearInputBufferB
 	
 	jmp		mainLoop
 
@@ -406,7 +415,7 @@ checkMatchWin		SUBROUTINE
 ; initialize life bars to full health for both players
 initLifebars		SUBROUTINE	
 
-	lda		#1
+	lda		#2
 	ldy		#6
 .loop1
 	
@@ -414,7 +423,7 @@ initLifebars		SUBROUTINE
 	sta		p2LifeBarTicks,y
 	dey
 	bpl		.loop1
-
+	
 	
 	rts
 	
@@ -452,19 +461,32 @@ updateHUD		SUBROUTINE
 	lda		p1WasStruck				; check if p1 blocked or dodged during that action (if it was a strike)
 	beq		.updateP2HealthBar
 	
+;	lda		#5
+;	sta		p1Action
+;	lda		#4
+;	sta		p1AnimTimer
+;	lda		#$B3
+;	sta		SPEAKER3
+;	adc		#$43
+;	sta		SPEAKER4
+
+	
 	ldy		#6
 .loop1
 	
 	ldx		p1LifeBarTicks,y
-	cpx		#1
-	bne		.skip1
-	
-	lda		#0
+	beq		.skip1
+
+	dex
+	txa
 	sta		p1LifeBarTicks,y
+	lda		#0
 	sta		p1WasStruck
 	
 	lda		emptySpaceCode
 	sta		P1LIFEBARSTART,y
+
+	
 	
 	jmp		.updateP2HealthBar
 	
@@ -481,15 +503,26 @@ updateHUD		SUBROUTINE
 	beq		.roundStatistics
 
 	
+;	lda		#5
+;	sta		p1Action
+;	lda		#4
+;	sta		p1AnimTimer
+;	lda		#$B3
+;	sta		SPEAKER3
+;	adc		#$43
+;	sta		SPEAKER4
+	
+	
 	ldy		#6
 .loop2
 	
 	ldx		p2LifeBarTicks,y
-	cpx		#1
-	bne		.skip2
+	beq		.skip2
 	
-	lda		#0
+	dex
+	txa
 	sta		p2LifeBarTicks,y
+	lda		#0
 	sta		p2WasStruck
 	
 	lda		emptySpaceCode
@@ -512,11 +545,11 @@ updateHUD		SUBROUTINE
 	lda		p1RoundWins,x
 	beq		.empty1
 
-	lda		#167
+	lda		#170
 	jmp		.draw1
 	
 .empty1
-	lda		#166
+	lda		#169
 
 .draw1
 	sta		P1ROUNDWINSSTART,y
@@ -534,11 +567,11 @@ updateHUD		SUBROUTINE
 	lda		p2RoundWins,x
 	beq		.empty2
 
-	lda		#167
+	lda		#170
 	jmp		.draw2
 	
 .empty2
-	lda		#166
+	lda		#169
 
 .draw2
 	sta		P2ROUNDWINSSTART,y
@@ -619,11 +652,11 @@ drawLifebars	 SUBROUTINE
 	ldy		#1						; start at 1 since the first section is a different graphic	
 .loop1								; run loop for 5 middle lifebar sections
 	
-	lda		#157					; load the middle lifebar graphic code (empty version)
+	lda		#158					; load the middle lifebar graphic code (empty version)
 	adc		p1LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P1LIFEBARSTART,y		; store in screen memory
 
-	lda		#157					; load the middle lifebar graphic code (empty version)
+	lda		#158					; load the middle lifebar graphic code (empty version)
 	adc		p2LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P2LIFEBARSTART,y		; store in screen memory
 	
@@ -633,15 +666,15 @@ drawLifebars	 SUBROUTINE
 
 	clc
 	
-	lda		#159					; load the right lifebar graphic code (empty version)
+	lda		#161					; load the right lifebar graphic code (empty version)
 	adc		p1LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P1LIFEBARSTART,y		; store in screen memory
 					
-	lda		#159					; load the right lifebar graphic code (empty version)
+	lda		#161					; load the right lifebar graphic code (empty version)
 	adc		p2LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P2LIFEBARSTART,y		; store in screen memory
 
-					
+	
 	rts
 	
 
@@ -657,13 +690,28 @@ doUserAction		SUBROUTINE
 ;						2 = punch
 ;						3 = block
 ;						4 = step
+;						5 = was struck
+;						6 = flying kick
 
 	
 	lda		p1Action		; If not 0, p1 is mid animation, do not process input (set to 0 when anim timer reaches 0)
 	beq		.drawUserDefault
+	
+	cmp		#3
+	beq		.checkContinueBlock
 	rts
 
+.checkContinueBlock	
+	lda		userPress
+	cmp		#1
+	bne		.notContinued
+	lda		#16
+	sta		p1AnimTimer
+	
+.notContinued	
+	rts
 
+	
 .drawUserDefault	
 	lda		#0
 	sta		p1IsBlocking
@@ -1494,7 +1542,7 @@ drawStreetFighterBanner		SUBROUTINE
 drawCurrentRound			SUBROUTINE
 
 
-	ldx		#161
+	ldx		#164
 	ldy		#0
 	sty		drawRoundBanner
 	
@@ -1512,7 +1560,7 @@ drawCurrentRound			SUBROUTINE
 
 	lda		currentRound
 	clc
-	adc		#168
+	adc		#171
 	
 	ldy		#7
 	sta		PRINTROUNDSTART,y
@@ -1521,6 +1569,8 @@ drawCurrentRound			SUBROUTINE
 	
 	
 	inc 	currentRound
+	jsr		wait
+	jsr		wait
 	jsr		wait
 	jsr		wait
 	jsr		wait
@@ -1594,20 +1644,27 @@ wait				SUBROUTINE
 ;	ORG		$1D00		; 256 bytes before where screen memory starts
 irqHandler
 
-	ldy		ram_00
-	iny
-	sty		ram_00
-	cpy		#6
+	
+	dec		ram_00
 	beq		.beginMusic
 	jmp		.skipMusic
 
 .beginMusic	
-	lda		#0
+	lda		#6
 	sta		ram_00		; reset the counter
 	
 	lda		SPEAKER2	; flip the msb to toggle repeating F on or off
 	eor		#$80
 	sta		SPEAKER2
+
+	
+	lda		p1Action
+	cmp		#5
+	beq		.dropTheBass
+
+	lda		p2ScreamTimer
+	cmp		#5
+	beq		.dropTheBass
 
 	ldy		ram_01
 	lda		melody,y
@@ -1623,32 +1680,32 @@ irqHandler
 	ldy		ram_01
 	cpy		#0
 	bne		.continue1
-	lda		#$D1			; change to alter the repeating note
-	sta		SPEAKER2
+;	lda		#$D1			; change to alter the repeating note
+;	sta		SPEAKER2
 	ldx		#0
 	jmp		.bass
 
 .continue1
 	cpy		#32
 	bne		.continue2
-	lda		#$D1			; change to alter the repeating note (D9)
-	sta		SPEAKER2
+;	lda		#$D1			; change to alter the repeating note
+;	sta		SPEAKER2
 	ldx		#1
 	jmp		.bass
 	
 .continue2
 	cpy		#64
 	bne		.continue3
-	lda		#$C7			; change to alter the repeating note (C7)
-	sta		SPEAKER2
+;	lda		#$C7			; change to alter the repeating note
+;	sta		SPEAKER2
 	ldx		#2
 	jmp		.bass
 	
 .continue3
 	cpy		#96
 	bne		.increment
-	lda		#$BB			; change to alter the repeating note (BB)
-	sta		SPEAKER2
+;	lda		#$BB			; change to alter the repeating note
+;	sta		SPEAKER2
 	ldx		#3
 	jmp		.bass
 
@@ -1673,7 +1730,29 @@ irqHandler
 .store
 	sty		ram_01
 
+
 	
+	
+
+	lda		p1Action
+	cmp		#5
+	bne		.checkP2Scream
+	jmp		.playerScream
+	
+.checkP2Scream
+	lda		p2ScreamTimer
+	cmp		#5
+	bne		.skipMusic
+	jmp		.playerScream
+	
+	
+.playerScream
+	dec		SPEAKER3
+	dec		SPEAKER3
+	dec		SPEAKER3
+	
+
+
 	
 	
 .skipMusic	
@@ -1765,8 +1844,6 @@ emptySpaceCode
 	.byte	$00
 	
 
-timer
-	.byte	#120
 	
 
 p1XPos				.byte	$00
@@ -1777,6 +1854,8 @@ p1Action			.byte	$00
 p1AnimTimer			.byte	$00
 p1Color				.byte	$00
 p1Score				.byte	$00
+p1ScreamTimer		.byte	$00
+
 
 p2DrawCodesStart	.byte	#73
 p2XPos				.byte	$00
@@ -1787,6 +1866,9 @@ p2Action			.byte	$00
 p2AnimTimer			.byte	$00
 p2Color				.byte	$00
 p2Score				.byte	$00
+p2ScreamTimer		.byte	$00
+
+
 
 aiTimeOut			.byte	$00
 aiDodgeRand			.byte	$00
@@ -1858,10 +1940,10 @@ p2RoundWins
 	
 
 p1LifeBarTicks
-	.byte		#1, #1, #1, #1, #1, #1, #1		; change to use bit mask instead
+	.byte		#2, #2, #2, #2, #2, #2, #2		; change to use bit mask instead
 
 p2LifeBarTicks
-	.byte		#1, #1, #1, #1, #1, #1, #1		; change to use bit mask instead
+	.byte		#2, #2, #2, #2, #2, #2, #2		; change to use bit mask instead
 
 
 	
@@ -1893,7 +1975,7 @@ startScreenLayout	; jump table for skipping to the next appropriate grapic in ST
 	
 	ORG		#5951 ; -> page boundaries: 5888 [page] 6144
 	
-startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 163 bytes
+startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 145 bytes
 S
 	.byte	#4, #2, #233, #223, #95, #118, #117, #223, #95, #105
 
@@ -2051,28 +2133,32 @@ emptySpace		; code 154
 	
 lifeBarGraphics	; code 155
 	.byte	$7f, $80, $80, $80, $80, $80, $80, $7f 
-	.byte	$7f, $80, $bb, $bb, $bb, $bb, $80, $7f 
+	.byte	$7f, $80, $b0, $b0, $b0, $b0, $80, $7f 
+	.byte	$7f, $80, $b6, $b6, $b6, $b6, $80, $7f 
+	
 	.byte	$ff, $00, $00, $00, $00, $00, $00, $ff 
-	.byte	$ff, $00, $bb, $bb, $bb, $bb, $00, $ff 
+	.byte	$ff, $00, $e0, $e0, $e0, $e0, $00, $ff 
+	.byte	$ff, $00, $ee, $ee, $ee, $ee, $00, $ff 
+	
 	.byte	$fe, $01, $01, $01, $01, $01, $01, $fe 
-	.byte	$fe, $01, $bb, $bb, $bb, $bb, $01, $fe 
-
-
+	.byte	$fe, $01, $e1, $e1, $e1, $e1, $01, $fe 
+	.byte	$fe, $01, $ed, $ed, $ed, $ed, $01, $fe 
+	
 	
 
 	
-ROUND 			; codes 161 through 165 
+ROUND 			; codes 164 through 168 
 	.byte	$00, $fc, $82, $82, $fc, $84, $82, $82 
 	.byte	$00, $38, $44, $82, $82, $82, $44, $38 
 	.byte	$00, $82, $82, $82, $82, $82, $44, $38 
 	.byte	$00, $82, $c2, $a2, $92, $8a, $86, $82 
 	.byte	$00, $f8, $84, $82, $82, $82, $84, $f8 
 
-ballGraphics 	; codes 166, 167
+ballGraphics 	; codes 169, 170
 	.byte	$3c, $42, $81, $81, $81, $81, $42, $3c 
 	.byte	$3c, $7e, $ff, $ff, $ff, $ff, $7e, $3c 
 
-digits 			; codes 168 through 177
+digits 			; codes 171 through 180
 	.byte	$00, $18, $24, $42, $42, $42, $24, $18 
 	.byte	$00, $08, $18, $78, $08, $08, $08, $08 
 	.byte	$00, $3c, $42, $44, $08, $10, $20, $7e 
