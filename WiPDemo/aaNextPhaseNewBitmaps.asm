@@ -160,7 +160,7 @@ nebro
 
 	
 	
-	lda		#$FE					; load code for telling vic chip where to look for character data (this code is hardwired and tells it to look at 6144)
+	lda		#$FD					; load code for telling vic chip where to look for character data
 	sta		$9005					; store in Vic chip
 	
 	
@@ -1972,7 +1972,7 @@ startScreenLayout	; jump table for skipping to the next appropriate grapic in ST
 
 
 	
-	ORG		#5951 ; -> page boundaries: 5888 [page] 6144
+	ORG		#4927 ; -> page boundaries: 4864 [page] 5120
 	
 startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 145 bytes
 S
@@ -2046,7 +2046,7 @@ KenBlockMask
 	.byte		$0E, $EF, $6E
 
 	
-	ORG		#6144		; forces our fighter graphics to begin where Vic is obtaining its character information from (character code 0 refers to the first 8 bytes starting at 6144, and so on)
+	ORG		#5120		; forces our fighter graphics to begin where Vic is obtaining its character information from (character code 0 refers to the first 8 bytes starting at 6144, and so on)
 
 RyuStand		; starts at code 0
 	.byte	$00, $00, $00, $01, $01, $01, $01, $7f, $3f, $c0, $80, $00, $00, $ff, $ff, $ff, $80, $60, $20, $20, $20, $e0, $e0, $e0 
@@ -2171,7 +2171,7 @@ digits 			; codes 171 through 180
 	
 	
 	
-; code 178	
+
 	
 	
 	
