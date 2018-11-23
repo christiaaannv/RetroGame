@@ -39,6 +39,9 @@ SCREENMEMORY1			.equ	$1E00
 COLORCONTROL2			.equ	$96FF	; COLORCONTROL1 + 255
 SCREENMEMORY2			.equ	$1EFF
 
+GAMEMODESCREENLOC1		.equ	#8142
+GAMEMODESCREENLOC2		.equ	#8164
+
 
 SPEAKER1				.equ	$900A
 SPEAKER2				.equ	$900B
@@ -90,6 +93,14 @@ DEBUGSCRC				.equ	$1E1A
 DEBUGSCRD				.equ	$1E1C
 
 
+P1INITXPOS				.equ	#$7A
+P1INITYPOS				.equ	#$1f
+
+P2INITXPOS				.equ	#$87
+P2INITYPOS				.equ	#$1f
+
+
+
 EMPTYSPACECODE			.equ	#154
 LIFELEFTCODES			.equ	#155
 LIFEMIDCODES			.equ	#158
@@ -102,7 +113,12 @@ FULLBALLCODE			.equ	#170
 
 DIGITCODES				.equ	#171
 	
-RYUSTANDCODES			.equ	#0
+DOWNKEY					.equ	#0
+SKEY					.equ	#1
+AKEY					.equ	#2
+DKEY					.equ	#3
+RIGHTKEY				.equ	#4
+
 
 
 main
@@ -112,7 +128,7 @@ main
 	
 
 	ldx		#$08
-	stx		$900f		; set background color to black and border color to cyan -- see appendices for codes and memory locations to store in 
+	stx		$900f		; set background color to black and border color to black
 
 	; load the address of a custom interrupt routine into Vic memory where the IRQ vector resides
 	lda		<#irqHandler
@@ -155,23 +171,37 @@ main
 
 	
 	lda		#32					; fill screen uses the current empty space code to fill the screen
-	sta		emptySpaceCode
+	sta		emptySpaceCode		; the code is different when using built in vic20 graphics (start screen) vs custom graphics
 
-	ldx		#2					; color to use for character color
+	ldx		#2					; color code to set character color (red)
 	jsr		fillScreen
 
 	jsr		drawStreetFighterBanner
+	jsr		drawGameModeIndicator
 
 	
-nebro
+; loop in start screen processing user input
+nogo
 	jsr		getInput
-	cmp		#1
-	bne		nebro
-
-
-	lda		#EMPTYSPACECODE
-	sta		emptySpaceCode
-
+	cmp		#AKEY
+	bne		.checkDKey
+	lda		#0
+	sta		gameplayMode
+	jsr		drawGameModeIndicator
+	jmp		nogo
+	
+.checkDKey
+	cmp		#DKEY
+	bne		.checkStart
+	lda		#1
+	sta		gameplayMode
+	jsr		drawGameModeIndicator
+	jmp		nogo
+	
+.checkStart
+	cmp		#SKEY
+	bne		nogo
+; out of start screen loop
 	
 	
 	lda		#$FD					; load code for telling vic chip where to look for character data
@@ -179,24 +209,26 @@ nebro
 	
 	
 	; store where top left of fighter is in screen memory into ram locations (basically represents x,y coordinates)
-	ldx		#$7A
-	stx		p1XPos
-	ldx		#$1f
-	stx		p1YPos
+;	ldx		#P1INITXPOS
+;	stx		p1XPos
+;	ldx		#P1INITYPOS
+;	stx		p1YPos
 
 
 	; store where top left of opponent is in screen memory into ram locations (basically represents x,y coordinates)
-	ldx		#$84
-	stx		p2XPos
-	ldx		#$1f
-	stx		p2YPos	
+;	ldx		#P2INITXPOS
+;	stx		p2XPos
+;	ldx		#P2INITYPOS
+;	stx		p2YPos	
 
+	lda		#EMPTYSPACECODE		
+	sta		emptySpaceCode
 
-	ldx		#1
-	jsr		fillScreen
+	ldx		#1					
+	jsr		fillScreen				; fill screen with custom empty space code after changing character memory location
 
-	jsr		initColors
-	jsr		initRoundIndicators
+	jsr		initColors				; init colors of static screen items (lifebars, etc.)
+	jsr		initRoundIndicators		; init and draw orund indicators
 
 
 	lda		#6
@@ -204,7 +236,9 @@ nebro
 	
 	lda		#4
 	sta		p2Color
-	
+
+	; Init AI difficulty control variables (can be hardcoded into initial ram versus set here)
+	; This is just for testing
 	lda		#20
 	sta		aiDodgeRand				; the higher this is, the more likely ai will move right when struck
 	lda		#60
@@ -217,7 +251,7 @@ nebro
 	sta		currentLevelTimeOut		; the lower this is, the faster ai will make decisions
 
 	
-	
+	; Can also be hardcoded - testing purposes
 	lda		#1
 	sta		currentRound
 	sta		drawRoundBanner
@@ -225,26 +259,19 @@ nebro
 	
 mainLoop	SUBROUTINE
 
-	lda		drawRoundBanner
-	beq		.skip
-
-	jsr		drawCurrentRound
-
-	
-.skip
-	jsr		checkRoundWin
+	jsr		checkRoundWin			; checks if the round was won this iteration and draws round banner if appropriate
 
 
-	jsr		clearInputBufferB
-	jsr		getInput
-	sta		userPress
-	jsr		doUserAction
-
-	jsr		checkP1Struck
-	jsr		checkP2Struck
+	jsr		clearInputBuffer		; clears user input from buffer (presses can accumulate leading to strange behavior)
+	jsr		getInput				
+	sta		userPress				; store result in ram location (not efficient but more explicit)			
+	jsr		doUserAction			; process the user's input possibly producing some action
 	
 	jsr		getAINextAction
 	jsr		doAIAction
+
+	jsr		checkP1Struck
+	jsr		checkP2Struck
 
 
 	jsr		updateHUD
@@ -253,7 +280,12 @@ mainLoop	SUBROUTINE
 
 	jsr		checkMatchWin
 
+
 	
+	lda		drawRoundBanner	
+	beq		.skip
+	jsr		drawCurrentRound
+.skip
 	
 	jmp		mainLoop
 
@@ -477,7 +509,7 @@ updateHUD		SUBROUTINE
 	lda		p1WasStruck				; check if p1 blocked or dodged during that action (if it was a strike)
 	beq		.updateP2HealthBar
 	
-;	lda		#5
+;	lda		#6
 ;	sta		p1Action
 ;	lda		#4
 ;	sta		p1AnimTimer
@@ -519,10 +551,10 @@ updateHUD		SUBROUTINE
 	beq		.roundStatistics
 
 	
-;	lda		#5
-;	sta		p1Action
+;	lda		#6
+;	sta		p2Action
 ;	lda		#4
-;	sta		p1AnimTimer
+;	sta		p2AnimTimer
 ;	lda		#$B3
 ;	sta		SPEAKER3
 ;	adc		#$43
@@ -701,13 +733,13 @@ drawLifebars	 SUBROUTINE
 	
 	
 doUserAction		SUBROUTINE
-;p1Action				0 = nothing
+;p1Action				0 = standing
 ;						1 = kick
 ;						2 = punch
 ;						3 = block
 ;						4 = step
-;						5 = was struck
-;						6 = flying kick
+;						5 = flying kick
+;						6 = was struck
 
 	
 	lda		p1Action		; If not 0, p1 is mid animation, do not process input (set to 0 when anim timer reaches 0)
@@ -729,11 +761,6 @@ doUserAction		SUBROUTINE
 
 	
 .drawUserDefault	
-	lda		#0
-	sta		p1IsBlocking
-	sta		p1IsStriking
-
-
 	lda		#0				; draw fighter graphic starting from p1 code 0
 	sta		drawCode
 	lda		<#RyuStandMask
@@ -846,7 +873,7 @@ doUserAction		SUBROUTINE
 
 	
 .doStepAnimation
-	lda		#15			; draw fighter graphic starting from p1 code 16
+	lda		#15			
 	sta		drawCode
 	lda		<#RyuStepMask
 	sta		$05
@@ -1006,18 +1033,12 @@ doAIAction		SUBROUTINE
 ;						2 = left
 ;						3 = right
 
-	lda		#0
-	sta		p2IsStriking
 
 	lda		p2Action
 	bne		.checkTimeOut
 
 	
 .drawP2Default	
-	lda		#0
-	sta		p2IsBlocking
-
-
 	lda		#73			; draw fighter graphic starting from character code 0
 	sta		drawCode
 	lda		<#KenStandMask
@@ -1219,7 +1240,14 @@ fillScreen		SUBROUTINE
 	
 	rts
 	
-	
+;p1Action				0 = standing
+;						1 = kick
+;						2 = punch
+;						3 = block
+;						4 = step
+;						5 = flying kick
+;						6 = was struck
+
 	
 	
 ; don't really need this routine
@@ -1295,7 +1323,7 @@ getInput		SUBROUTINE		; loads a with..
 	
 ; clears all data from the input buffer except for the first character in the buffer
 ; use to eliminate input queue growth resultant of multiple key presses during animations 
-clearInputBufferB		SUBROUTINE
+clearInputBuffer		SUBROUTINE
 
 	ldy		#$00
 	lda		#$00
@@ -1532,19 +1560,42 @@ drawStreetFighterBanner		SUBROUTINE
 		
 
 .printInstructions
-	ldx		#19
-	ldy		#249
-.loop    
-	lda		startGameString,x
 
-	sta		SCREENMEMORY2,y
+	lda		#49
+	sta		GAMEMODESCREENLOC2
+
+	ldy		#14
+	lda		#50
+	sta		GAMEMODESCREENLOC2,y
+	
+
+	ldx		#5
+	ldy		#21
+.loop1    
+	lda		startGameString,x
+	sta		GAMEMODESCREENLOC2,y
 	
 	dey
 	dex
-	bpl		.loop
-	rts
+	bpl		.loop1
+
+	tya
+	cmp		#14
+	bmi		.end
 
 	
+	ldx		#5
+	sec
+	sbc		#8
+	tay
+	jmp		.loop1
+	
+	
+	
+	
+
+	
+.end	
 	rts
 
 
@@ -1621,6 +1672,42 @@ eraseCurrentRound			SUBROUTINE
 	rts
 
 	
+
+
+
+drawGameModeIndicator		SUBROUTINE	
+
+	lda		#32
+	ldy		#21
+.loop1
+	sta		GAMEMODESCREENLOC1,y
+	dey
+	bpl		.loop1
+	
+
+
+	lda		gameplayMode
+	beq		.onePlayer
+	ldy		#21
+	jmp		.draw
+	
+.onePlayer
+	ldy		#7
+
+.draw	
+
+	lda		#68
+	ldx		#7
+.loop2
+	sta		GAMEMODESCREENLOC1,y
+	dey
+	dex
+	bpl		.loop2
+
+	
+	rts
+
+
 
 	
 	
@@ -1803,7 +1890,8 @@ irqHandler
 .setP1Action	
 	lda		#0
 	sta		p1Action
-	
+	sta		p1IsBlocking
+	sta		p1IsStriking	
 	
 .decP2AnimTimer
 	lda		p2Action
@@ -1815,6 +1903,8 @@ irqHandler
 .setP2Action
 	lda		#0
 	sta		p2Action
+	sta		p2IsBlocking
+	sta		p2IsStriking
 	
 .decAiTimeOut	
 	lda		aiTimeOut
@@ -1861,10 +1951,10 @@ emptySpaceCode
 
 	
 
-p1XPos				.byte	$00
+p1XPos				.byte	#P1INITXPOS
 p1XPosPrev			.byte	$00
 p1XPosColor			.byte	$00
-p1YPos				.byte	$00
+p1YPos				.byte	#P1INITYPOS
 p1Action			.byte	$00
 p1AnimTimer			.byte	$00
 p1Color				.byte	$00
@@ -1873,10 +1963,10 @@ p1ScreamTimer		.byte	$00
 
 
 p2DrawCodesStart	.byte	#73
-p2XPos				.byte	$00
+p2XPos				.byte	#P2INITXPOS
 p2XPosPrev			.byte	$00
 p2XPosColor			.byte	$00
-p2YPos				.byte	$00
+p2YPos				.byte	#P2INITYPOS
 p2Action			.byte	$00
 p2AnimTimer			.byte	$00
 p2Color				.byte	$00
@@ -1948,6 +2038,9 @@ distanceApart		.byte	$00
 userPress			.byte	$00
 
 
+gameplayMode		.byte	$00
+
+
 p1RoundWins
 	.byte		#0, #0, #0, #0
 	
@@ -1962,10 +2055,9 @@ p2LifeBarTicks
 	.byte		#2, #2, #2, #2, #2, #2, #2		; change to use bit mask instead
 
 
-	
+; player
 startGameString
-    .byte	#16, #18, #5, #19, #19, #32, #40, #19, #41, #32, #20, #15, #32, #6, #9, #7, #8, #20, #33, #33
-	
+    .byte	#16, #12, #1, #25, #5, #18
 	
 startScreenLayout	; jump table for skipping to the next appropriate grapic in STREET FIGHTER graphics
 					; [low of address for graphic], [high of address for graphic], [scr memory offset to draw at]
