@@ -90,6 +90,20 @@ DEBUGSCRC				.equ	$1E1A
 DEBUGSCRD				.equ	$1E1C
 
 
+EMPTYSPACECODE			.equ	#154
+LIFELEFTCODES			.equ	#155
+LIFEMIDCODES			.equ	#158
+LIFERIGHTCODES			.equ	#161
+
+ROUNDLETTERCODES		.equ	#164
+
+EMPTYBALLCODE			.equ	#169
+FULLBALLCODE			.equ	#170
+
+DIGITCODES				.equ	#171
+	
+RYUSTANDCODES			.equ	#0
+
 
 main
 
@@ -140,10 +154,10 @@ main
 	; Finish Init Music
 
 	
-	lda		#32
+	lda		#32					; fill screen uses the current empty space code to fill the screen
 	sta		emptySpaceCode
 
-	ldx		#2
+	ldx		#2					; color to use for character color
 	jsr		fillScreen
 
 	jsr		drawStreetFighterBanner
@@ -155,7 +169,7 @@ nebro
 	bne		nebro
 
 
-	lda		#154
+	lda		#EMPTYSPACECODE
 	sta		emptySpaceCode
 
 	
@@ -197,6 +211,8 @@ nebro
 	sta		aiBlockRand				; the higher this is, the more likely ai will block successfully
 	lda		#40
 	sta		aiStrikeRand			; the higher this is, the more likely ai will strike when in range
+	lda		#29
+	sta		aiKickPunchRand			; the higher this is, the more likely the ai will punch rather than kick when striking
 	lda		#12
 	sta		currentLevelTimeOut		; the lower this is, the faster ai will make decisions
 
@@ -545,11 +561,11 @@ updateHUD		SUBROUTINE
 	lda		p1RoundWins,x
 	beq		.empty1
 
-	lda		#170
+	lda		#FULLBALLCODE
 	jmp		.draw1
 	
 .empty1
-	lda		#169
+	lda		#EMPTYBALLCODE
 
 .draw1
 	sta		P1ROUNDWINSSTART,y
@@ -567,11 +583,11 @@ updateHUD		SUBROUTINE
 	lda		p2RoundWins,x
 	beq		.empty2
 
-	lda		#170
+	lda		#FULLBALLCODE
 	jmp		.draw2
 	
 .empty2
-	lda		#169
+	lda		#EMPTYBALLCODE
 
 .draw2
 	sta		P2ROUNDWINSSTART,y
@@ -640,11 +656,11 @@ drawLifebars	 SUBROUTINE
 
 	clc										
 										
-	lda		#155					; load the left lifebar graphic code (empty version)
+	lda		#LIFELEFTCODES			; load the left lifebar graphic code (empty version)
 	adc		p1LifeBarTicks			; add the number of ticks remaining in the leftmost lifebar
 	sta		P1LIFEBARSTART			; store in screen memory
 
-	lda		#155
+	lda		#LIFELEFTCODES
 	adc		p2LifeBarTicks
 	sta		P2LIFEBARSTART
 
@@ -652,11 +668,11 @@ drawLifebars	 SUBROUTINE
 	ldy		#1						; start at 1 since the first section is a different graphic	
 .loop1								; run loop for 5 middle lifebar sections
 	
-	lda		#158					; load the middle lifebar graphic code (empty version)
+	lda		#LIFEMIDCODES			; load the middle lifebar graphic code (empty version)
 	adc		p1LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P1LIFEBARSTART,y		; store in screen memory
 
-	lda		#158					; load the middle lifebar graphic code (empty version)
+	lda		#LIFEMIDCODES			; load the middle lifebar graphic code (empty version)
 	adc		p2LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P2LIFEBARSTART,y		; store in screen memory
 	
@@ -666,11 +682,11 @@ drawLifebars	 SUBROUTINE
 
 	clc
 	
-	lda		#161					; load the right lifebar graphic code (empty version)
+	lda		#LIFERIGHTCODES			; load the right lifebar graphic code (empty version)
 	adc		p1LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P1LIFEBARSTART,y		; store in screen memory
 					
-	lda		#161					; load the right lifebar graphic code (empty version)
+	lda		#LIFERIGHTCODES			; load the right lifebar graphic code (empty version)
 	adc		p2LifeBarTicks,y		; add the number of life ticks remaining in that section
 	sta		P2LIFEBARSTART,y		; store in screen memory
 
@@ -927,7 +943,7 @@ getAINextAction		SUBROUTINE
 
 .newRand1
 	jsr		rand						; Randomize punch/kick
-	cmp		#30
+	cmp		aiKickPunchRand
 	bpl		.kick
 	
 	lda		#2
@@ -1541,7 +1557,7 @@ drawStreetFighterBanner		SUBROUTINE
 drawCurrentRound			SUBROUTINE
 
 
-	ldx		#164
+	ldx		#ROUNDLETTERCODES
 	ldy		#0
 	sty		drawRoundBanner
 	
@@ -1559,7 +1575,7 @@ drawCurrentRound			SUBROUTINE
 
 	lda		currentRound
 	clc
-	adc		#171
+	adc		#DIGITCODES
 	
 	ldy		#7
 	sta		PRINTROUNDSTART,y
@@ -1873,6 +1889,7 @@ aiTimeOut			.byte	$00
 aiDodgeRand			.byte	$00
 aiBlockRand			.byte	$00
 aiStrikeRand		.byte	$00
+aiKickPunchRand		.byte	$00
 
 drawXPos			.byte	$00
 drawCode			.byte	$00
