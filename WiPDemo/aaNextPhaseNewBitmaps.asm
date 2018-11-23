@@ -120,6 +120,15 @@ DKEY					.equ	#3
 RIGHTKEY				.equ	#4
 
 
+STANDING				.equ	#0
+KICKING					.equ	#1
+PUNCHING				.equ	#2
+BLOCKING				.equ	#3
+STEPPING				.equ	#4
+FLYING					.equ	#5
+KEELING					.equ	#6
+
+
 
 main
 
@@ -207,19 +216,6 @@ nogo
 	lda		#$FD					; load code for telling vic chip where to look for character data
 	sta		$9005					; store in Vic chip
 	
-	
-	; store where top left of fighter is in screen memory into ram locations (basically represents x,y coordinates)
-;	ldx		#P1INITXPOS
-;	stx		p1XPos
-;	ldx		#P1INITYPOS
-;	stx		p1YPos
-
-
-	; store where top left of opponent is in screen memory into ram locations (basically represents x,y coordinates)
-;	ldx		#P2INITXPOS
-;	stx		p2XPos
-;	ldx		#P2INITYPOS
-;	stx		p2YPos	
 
 	lda		#EMPTYSPACECODE		
 	sta		emptySpaceCode
@@ -317,7 +313,7 @@ checkP1Struck	SUBROUTINE
 	
 .wasP1Struck	
 	lda		p1Action			; check if p1 was blocking during the strike
-	cmp		#3
+	cmp		#BLOCKING
 	beq		.setStruckState
 	ldx		#1
 
@@ -357,7 +353,7 @@ checkP2Struck	SUBROUTINE
 	
 .wasP2Struck	
 	lda		p2Action			; check if p2 was blocking during the strike
-	cmp		#3
+	cmp		#BLOCKING
 	beq		.setStruckState
 	ldx		#1
 
@@ -509,7 +505,7 @@ updateHUD		SUBROUTINE
 	lda		p1WasStruck				; check if p1 blocked or dodged during that action (if it was a strike)
 	beq		.updateP2HealthBar
 	
-;	lda		#6
+;	lda		#KEELING
 ;	sta		p1Action
 ;	lda		#4
 ;	sta		p1AnimTimer
@@ -551,7 +547,7 @@ updateHUD		SUBROUTINE
 	beq		.roundStatistics
 
 	
-;	lda		#6
+;	lda		#KEELING
 ;	sta		p2Action
 ;	lda		#4
 ;	sta		p2AnimTimer
@@ -745,7 +741,7 @@ doUserAction		SUBROUTINE
 	lda		p1Action		; If not 0, p1 is mid animation, do not process input (set to 0 when anim timer reaches 0)
 	beq		.drawUserDefault
 	
-	cmp		#3
+	cmp		#BLOCKING
 	beq		.checkContinueBlock
 	rts
 
@@ -785,7 +781,7 @@ doUserAction		SUBROUTINE
 	lda		>#RyuPunchMask
 	sta		$06
 
-	lda		#2
+	lda		#PUNCHING
 	sta		p1Action
 	
 	lda		#1
@@ -805,7 +801,7 @@ doUserAction		SUBROUTINE
 	lda		>#RyuBlockMask
 	sta		$06
 
-	lda		#3
+	lda		#BLOCKING
 	sta		p1Action
 
 	lda		#1
@@ -828,7 +824,7 @@ doUserAction		SUBROUTINE
 	lda		>#RyuKickMask
 	sta		$06
 
-	lda		#1
+	lda		#KICKING
 	sta		p1Action
 	
 	lda		#1
@@ -880,7 +876,7 @@ doUserAction		SUBROUTINE
 	lda		>#RyuStepMask
 	sta		$06
 
-	lda		#4
+	lda		#STEPPING
 	sta		p1Action
 
 	
@@ -953,7 +949,7 @@ getAINextAction		SUBROUTINE
 	cmp		aiBlockRand
 	bpl		.notBeingStruck				; If random block fails, store state vars and act as if not being struck
 	
-	lda		#3
+	lda		#BLOCKING
 	sta		p2Action
 	rts
 
@@ -973,12 +969,12 @@ getAINextAction		SUBROUTINE
 	cmp		aiKickPunchRand
 	bpl		.kick
 	
-	lda		#2
+	lda		#PUNCHING
 	sta		p2Action
 	rts
 	
 .kick
-	lda		#1
+	lda		#KICKING
 	sta		p2Action
 	rts
 
@@ -994,7 +990,7 @@ getAINextAction		SUBROUTINE
 .moveRight							
 	lda		#3
 	sta		aiDir
-	lda		#4
+	lda		#STEPPING
 	sta		p2Action
 
 	rts
@@ -1003,7 +999,7 @@ getAINextAction		SUBROUTINE
 .moveLeft
 	lda		#2
 	sta		aiDir
-	lda		#4
+	lda		#STEPPING
 	sta		p2Action
 	
 	rts
@@ -1059,7 +1055,7 @@ doAIAction		SUBROUTINE
 	
 .checkKick
 	lda		p2Action
-	cmp		#1
+	cmp		#KICKING
 	bne		.checkPunch	
 
 	lda		#1
@@ -1076,7 +1072,7 @@ doAIAction		SUBROUTINE
 
 	
 .checkPunch
-	cmp		#2
+	cmp		#PUNCHING
 	bne		.checkBlock
 
 	lda		#1
@@ -1092,7 +1088,7 @@ doAIAction		SUBROUTINE
 	jmp		.draw
 	
 .checkBlock
-	cmp		#3
+	cmp		#BLOCKING
 	bne		.checkDirection
 
 	lda		#1
@@ -1761,11 +1757,11 @@ irqHandler
 
 	
 	lda		p1Action
-	cmp		#5
+	cmp		#KEELING
 	beq		.dropTheBass
 
 	lda		p2ScreamTimer
-	cmp		#5
+	cmp		#KEELING
 	beq		.dropTheBass
 
 	ldy		ram_01
@@ -1837,15 +1833,15 @@ irqHandler
 	
 
 	lda		p1Action
-	cmp		#5
+	cmp		#KEELING
 	bne		.checkP2Scream
 	jmp		.playerScream
 	
 .checkP2Scream
-	lda		p2ScreamTimer
-	cmp		#5
+	lda		p2Action
+	cmp		#KEELING
 	bne		.skipMusic
-	jmp		.playerScream
+
 	
 	
 .playerScream
@@ -2041,6 +2037,29 @@ userPress			.byte	$00
 gameplayMode		.byte	$00
 
 
+
+
+p1DrawMasks
+
+StandMask
+	.byte		$00, $00, $00
+
+StepMask
+	.byte		$00, $00, $00
+
+PunchMask
+	.byte		$00, $00, $00
+
+KickMask
+	.byte		$00, $00, $00
+
+BlockMask
+	.byte		$00, $00, $00
+
+	
+	
+	
+	
 p1RoundWins
 	.byte		#0, #0, #0, #0
 	
@@ -2126,34 +2145,37 @@ V
 RyuStandMask
 	.byte		$07, $77, $77
 
-RyuStepMask
-	.byte		$07, $77, $77
+RyuKickMask
+	.byte		$0C, $FF, $E6
 
 RyuPunchMask
 	.byte		$0E, $E7, $67
 
-RyuKickMask
-	.byte		$0C, $FF, $E6
-
 RyuBlockMask
 	.byte		$06, $77, $77
 
+RyuStepMask
+	.byte		$07, $77, $77
+
+	
 
 KenStandMask
 	.byte		$0E, $EE, $EF
 
-KenStepMask
-	.byte		$07, $7F, $FE
+KenKickMask
+	.byte		$07, $FF, $76
 
 KenPunchMask
 	.byte		$07, $FF, $77
 
-KenKickMask
-	.byte		$07, $FF, $76
-
 KenBlockMask
 	.byte		$0E, $EF, $6E
 
+KenStepMask
+	.byte		$07, $7F, $FE
+
+	
+	
 	
 	ORG		#5120		; forces our fighter graphics to begin where Vic is obtaining its character information from (character code 0 refers to the first 8 bytes starting at 6144, and so on)
 
