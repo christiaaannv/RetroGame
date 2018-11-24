@@ -113,11 +113,11 @@ FULLBALLCODE			.equ	#170
 
 DIGITCODES				.equ	#171
 	
-DOWNKEY					.equ	#0
-SKEY					.equ	#1
-AKEY					.equ	#2
-DKEY					.equ	#3
-RIGHTKEY				.equ	#4
+AKEY					.equ	#0
+RIGHTKEY				.equ	#1
+DOWNKEY					.equ	#2
+SKEY					.equ	#3
+DKEY					.equ	#4
 
 
 STANDING				.equ	#0
@@ -750,16 +750,16 @@ doUserAction		SUBROUTINE
 ;						6 = was struck
 
 	
-	lda		p1Action		; If not 0, p1 is mid animation, do not process input (set to 0 when anim timer reaches 0)
-	beq		.drawUserDefault
+	lda		p1Action			; If not 0, p1 is mid animation (set to 0 in irq when anim timer reaches 0)
+	beq		.drawUserDefault	
 	
-	cmp		#BLOCKING
+	cmp		#BLOCKING			; If mid block and block is pressed again, add to block animation timer
 	beq		.checkContinueBlock
 	rts
 
 .checkContinueBlock	
 	lda		userPress
-	cmp		#1
+	cmp		#BLOCKING
 	bne		.notContinued
 	lda		#16
 	sta		p1AnimTimer
@@ -768,141 +768,99 @@ doUserAction		SUBROUTINE
 	rts
 
 	
-.drawUserDefault	
-	lda		#0				; draw fighter graphic starting from p1 code 0
+.drawUserDefault				; when p1Action is set to 0 in the IRQ, draw the fighter's default stance
+	lda		p1DrawCodes			; draw fighter graphic starting from p1 code 0
 	sta		drawCode
-	lda		<#RyuStandMask
+	lda		p1MasksAddrLow
 	sta		$05
-	lda		>#RyuStandMask
+	lda		p1MasksAddrHigh
 	sta		$06
-
 	lda		p1XPos
 	sta		drawXPos
 	jsr		drawFighterB
 
-	
-.checkPunch
+
+	; Process user input
 	lda		userPress
-	bne		.checkBlock
-
-.doPunchAnimation
-	lda		#30
-	sta		drawCode
-	lda		<#RyuPunchMask
-	sta		$05
-	lda		>#RyuPunchMask
-	sta		$06
-
-	lda		#PUNCHING
-	sta		p1Action
+	beq		.tryLeft
+	cmp		#4
+	beq		.tryRight
+	cmp		#$FF
+	beq		.end
 	
-	lda		#1
-	sta		p1IsStriking
-	jmp		.draw
+	sta		p1Action
 
 
 .checkBlock
-	cmp		#1
-	bne		.checkKick
+	cmp		#BLOCKING
+	bne		.playerIsStriking
 	
-.doBlockAnimation	
-	lda		#59
-	sta		drawCode
-	lda		<#RyuBlockMask
-	sta		$05
-	lda		>#RyuBlockMask
-	sta		$06
-
-	lda		#BLOCKING
-	sta		p1Action
-
 	lda		#1
 	sta		p1IsBlocking
 	jmp		.draw
-
 	
-.checkKick
-	cmp		#4
-	bne		.checkLeft
-
 	
-.doKickAnimation
-	lda		#44
-	sta		drawCode
-	lda		p1XPos
-	sta		drawXPos
-	lda		<#RyuKickMask
-	sta		$05
-	lda		>#RyuKickMask
-	sta		$06
-
-	lda		#KICKING
-	sta		p1Action
-	
+.playerIsStriking	
 	lda		#1
 	sta		p1IsStriking
 	jmp		.draw
+
 	
-	
-.checkLeft	
-	cmp		#$02			; was left pressed
-	bne		.checkRight
-.tryLeft
+.tryLeft	
 	lda		p1XPos
-	cmp		#$78			; is p1 at left edge of screen
-	bpl		.moveLeft		; if not, move left
+	cmp		#$78				; is p1 at left edge of screen
+	bpl		.moveLeft			; if not, move left
 	rts		
 .moveLeft	
 	lda		p1XPos
 	sta		drawXPos
-	jsr		clearFighter	; otherwise, clear p1
-	dec		p1XPos			; make new p1 position 1 column to left
-	jmp		.doStepAnimation
-	
+	jsr		clearFighter		; otherwise, clear p1
+	dec		p1XPos				; make new p1 position 1 column to left
+	jmp		.setActionStepping
 
-
-.checkRight
-	cmp		#$03			; was right pressed
-	beq		.tryRight
-	rts
-.tryRight	
+.tryRight
 	lda		p1XPos
 	clc
 	adc		#4
-	cmp		p2XPos			; is p1 at p2?
-	bne		.moveRight		; if so, no movement right
+	cmp		p2XPos				; is p1 at p2?
+	bne		.moveRight			; if so, no movement right
 	rts
 .moveRight
 	lda		p1XPos
 	sta		drawXPos
-	jsr		clearFighter	; otherwise, clear p1
-	inc		p1XPos			; make new p1 position 1 column to right
-	
+	jsr		clearFighter		; otherwise, clear p1
+	inc		p1XPos				; make new p1 position 1 column to right
 
-	
-.doStepAnimation
-	lda		#15			
-	sta		drawCode
-	lda		<#RyuStepMask
-	sta		$05
-	lda		>#RyuStepMask
-	sta		$06
 
+.setActionStepping
 	lda		#STEPPING
 	sta		p1Action
 
 	
 	
 .draw
+	lda		p1Action			; each mask is 3 bytes, and each action corresponds to a mask for that graphic
+	tay
+	clc
+	adc		p1Action
+	adc		p1Action			; skip 3 * p1Action bytes from the beginning of the graphic masks for that fighter
+	sta		ram_04
+	lda		p1MasksAddrLow
+	adc		ram_04
+	sta		$05					; store for indirect indexed addressing in drawFighter
 
-	lda		p1XPos
+	lda		p1DrawCodes,y		; store the draw code for the beginning of the graphic being drawn
+	sta		drawCode
+	
+	lda		p1XPos				; store the current position of the fighter as a screen memory offset
 	sta		drawXPos
-	jsr		clearFighter
 	jsr		drawFighterB
 
 	lda		#16			
 	sta		p1AnimTimer
 
+	
+.end
 	rts
 	
 	
@@ -1262,11 +1220,11 @@ fillScreen		SUBROUTINE
 ; just jsr GETIN and use the value provided to determine actions
 
 getInput		SUBROUTINE		; loads a with..
-								; 0 -> down (punch)
-								; 1 -> s (block)
-								; 2	-> a (left)
-								; 3 -> d (right)
-								; 4 -> right (kick)
+								; 2 -> down (punch)
+								; 3 -> s (block)
+								; 0	-> a (left)
+								; 4 -> d (right)
+								; 1 -> right (kick)
 								 
 								; registers ruined..
 								; a
@@ -1282,7 +1240,7 @@ getInput		SUBROUTINE		; loads a with..
 	cmp		#17					; ascii code for down key	
 	bne		.checkForSKey
 	
-	lda		#0
+	lda		#DOWNKEY
 	rts
 
 	
@@ -1290,7 +1248,7 @@ getInput		SUBROUTINE		; loads a with..
 	cmp		#83					; ascii code for S key	
 	bne		.checkForAKey
 		
-	lda		#1
+	lda		#SKEY
 	rts
 		
 	
@@ -1298,7 +1256,7 @@ getInput		SUBROUTINE		; loads a with..
 	cmp		#65					; ascii code for A key			
 	bne		.checkForDKey
 
-	lda		#2
+	lda		#AKEY
 	rts
 
 	
@@ -1306,7 +1264,7 @@ getInput		SUBROUTINE		; loads a with..
 	cmp		#68					; ascii code for D key			
 	bne		.checkForRightKey				
 
-	lda		#3
+	lda		#DKEY
 	rts
 
 	
@@ -1314,7 +1272,7 @@ getInput		SUBROUTINE		; loads a with..
 	cmp		#29
 	bne		.return
 	
-	lda		#4
+	lda		#RIGHTKEY
 	rts
 	
 .return
@@ -2057,6 +2015,9 @@ p1MasksAddrHigh		.byte	$00
 
 	
 	
+p1DrawCodes
+	.byte	#0, #44, #30, #59, #15
+	
 	
 	
 p1RoundWins
@@ -2096,6 +2057,7 @@ startScreenLayout	; jump table for skipping to the next appropriate grapic in ST
 	
 	.byte	<#V, >#V, #37
 
+	
 
 	
 RyuDrawCodes
