@@ -69,6 +69,7 @@ P2ROUNDWINSCOLORSTART	.equ	#38481
 PRINTROUNDSTART			.equ	#7841
 PRINTROUNDCOLORSTART	.equ	#38561
 
+EMPTYSPACEADDR			.equ	#6488
 
 DEBUGSCR1				.equ	$1E00
 DEBUGSCR2				.equ	$1E02
@@ -91,6 +92,10 @@ DEBUGSCRA				.equ	$1E16
 DEBUGSCRB				.equ	$1E18
 DEBUGSCRC				.equ	$1E1A
 DEBUGSCRD				.equ	$1E1C
+DEBUGSCRE				.equ	$1E1E
+
+DEBUGSCRF				.equ	$1E2C
+DEBUGSCRG				.equ	$1E42
 
 
 P1INITXPOS				.equ	#$7A
@@ -136,6 +141,7 @@ main
 ;	sta		$028A
 	
 
+	
 	ldx		#$08
 	stx		$900f		; set background color to black and border color to black
 
@@ -185,6 +191,27 @@ main
 	ldx		#2					; color code to set character color (red)
 	jsr		fillScreen
 
+	
+	
+	
+	lda		<#RyuStandMask
+	sta		ram_03
+	lda		>#RyuStandMask
+	sta		ram_04
+	lda		<#RyuStand
+	sta		ram_05
+	lda		>#RyuStand
+	sta		ram_06
+
+	jsr		flipCharacterData
+	jsr		swapCharacterData
+	jsr		flipCharacterDrawMasks
+
+
+
+
+	
+	
 	jsr		drawStreetFighterBanner
 	jsr		drawGameModeIndicator
 
@@ -212,9 +239,10 @@ nogo
 	bne		nogo
 ; out of start screen loop
 	
+
 	
 	lda		#$FD					; load code for telling vic chip where to look for character data
-	sta		$9005					; store in Vic chip
+	sta		$9005					; store in Vic chip (36869)
 	
 
 	lda		#EMPTYSPACECODE		
@@ -223,6 +251,7 @@ nogo
 	ldx		#1					
 	jsr		fillScreen				; fill screen with custom empty space code after changing character memory location
 
+	
 	jsr		initColors				; init colors of static screen items (lifebars, etc.)
 	jsr		initRoundIndicators		; init and draw orund indicators
 
@@ -259,11 +288,10 @@ nogo
 	lda		>#RyuStandMask
 	sta		p1MasksAddrHigh
 	
-	lda		<#RyuDrawCodes
-	sta		p1DrawCodesAddrLow
-	lda		>#RyuDrawCodes
-	sta		p1DrawCodesAddrHigh
-	
+
+
+
+
 	
 mainLoop	SUBROUTINE
 
@@ -1005,7 +1033,7 @@ doAIAction		SUBROUTINE
 
 	
 .drawP2Default	
-	lda		#73			; draw fighter graphic starting from character code 0
+	lda		#73					; fighter default stance code
 	sta		drawCode
 	lda		<#KenStandMask
 	sta		$05
@@ -1031,7 +1059,7 @@ doAIAction		SUBROUTINE
 	lda		#1
 	sta		p2IsStriking
 
-	lda		#123			; draw fighter kick graphic starting from character code 134
+	lda		#89					; fighter kick graphic code
 	sta		drawCode
 	lda		<#KenKickMask
 	sta		$05
@@ -1048,7 +1076,7 @@ doAIAction		SUBROUTINE
 	lda		#1
 	sta		p2IsStriking
 	
-	lda		#106			; draw fighter punch graphic starting from character code 117
+	lda		#105				; fighter punch graphic code
 	sta		drawCode
 	lda		<#KenPunchMask
 	sta		$05
@@ -1064,7 +1092,7 @@ doAIAction		SUBROUTINE
 	lda		#1
 	sta		p2IsBlocking
 
-	lda		#139			; draw fighter block graphic starting from character code 151
+	lda		#122				; fighter block graphic code
 	sta		drawCode
 	lda		<#KenBlockMask
 	sta		$05
@@ -1113,7 +1141,7 @@ doAIAction		SUBROUTINE
 	
 	
 .doStepAnimation
-	lda		#89					; draw fighter step graphic starting from character code 100
+	lda		#137					; fighter step graphic code
 	sta		drawCode
 	lda		<#KenStepMask
 	sta		$05
@@ -1705,6 +1733,395 @@ wait				SUBROUTINE
 	
 	
 	
+swapCharacterData		SUBROUTINE
+	
+	lda		ram_03
+	sta		$01
+	lda		ram_04
+	sta		$02
+
+	
+	lda		ram_05
+	sta		$03
+	sta		$05
+	lda		ram_06
+	sta		$04
+	sta		$06
+		
+	lda		#0
+	sta		ram_07
+	sta		ram_08
+	sta		ram_10			; loop over nMasks
+	sta		ram_22
+	
+.init
+	lda		#0
+	sta		ram_09			
+	
+
+	ldy		ram_10
+	cpy		#15; change to 15 to loop through all masks
+	bne		.notDone
+	jmp		.rts
+	
+.notDone
+	lda		($01),y			; load the next mask
+	sta		ram_11
+	
+.top1
+	lda		ram_11
+	ldy		#0				; init num drawable cells in current mask
+	ldx		#4
+.loop1
+	clc
+	asl
+	bcc		.noCarry1
+	iny						
+	
+.noCarry1
+	dex		
+	bne		.loop1
+
+	sta		ram_11
+	lda		ram_09
+	bne		.secondHalf
+	sty		ram_07
+	jmp		.continue
+
+.secondHalf	
+	sty		ram_08
+
+.continue	
+	inc		ram_09
+	lda		ram_09
+	cmp		#2
+	bne		.top1
+
+	inc		ram_10			; move to mext mask
+
+	lda		ram_07
+	sta		ram_09
+
+.top2
+	lda		ram_09
+	asl
+	asl
+	asl
+	sta		ram_13
+	sta		ram_09
+	beq		.nextRow
+
+
+	
+	sec
+	sbc		#8
+	sta		ram_11
+	lda		$03
+	clc
+	adc		ram_11
+	sta		$05
+	bcc		.noCarry2
+	inc		$06
+.noCarry2	
+
+
+.top3
+	ldy		#0
+	
+.loop2
+	lda		($03),y
+	sta		ram_12
+	lda		($05),y
+	sta		($03),y
+	lda		ram_12
+	sta		($05),y
+	iny
+	cpy		#8
+	bne		.loop2
+	
+	lda		ram_09
+	cmp		#32
+	bne		.nextRow
+	dec		ram_09
+
+
+	lda		$03
+	clc
+	adc		#8
+	sta		$03
+	bcc		.noCarry3
+	inc		$04
+.noCarry3
+
+	
+	lda		$05
+	sec
+	sbc		#8
+	sta		$05
+	cmp		#248
+	bpl		.borrow
+	jmp		.noBorrow
+	
+.borrow
+	dec		$06
+
+.noBorrow	
+	jmp		.top3
+	
+	
+.nextRow
+	lda		ram_05
+	clc
+	adc		ram_13
+	sta		$03
+	sta		$05
+	sta		ram_05
+	bcc		.noCarry5
+	inc		ram_06
+	
+.noCarry5
+	lda		ram_06
+	sta		$04
+	sta		$06
+	
+	lda		ram_08
+	beq		.jmpInit
+	sta		ram_09
+	lda		#0
+	sta		ram_08
+	jmp		.top2
+		
+
+.jmpInit
+	jmp		.init
+		
+.rts		
+	rts
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+flipCharacterData		SUBROUTINE
+
+	lda		ram_03
+	sta		$01
+	lda		ram_04
+	sta		$02
+	
+	lda		ram_05
+	sta		$03
+	lda		ram_06
+	sta		$04
+	
+	
+	lda		#0
+	sta		ram_07			; init number of drawable cells = 0
+	sta		ram_14			; init current mask being processed = 0
+
+	
+	; tally number of bits on in all masks for character graphics (nDrawableCells)
+.top0
+	ldy		ram_14
+	lda		($01),y			; load the next mask
+
+
+	ldy		#0				; init num drawable cells in current mask
+	ldx		#8				; repeat 8 times (one for each bit in mask)
+.loop1
+	clc
+	asl
+	bcc		.noCarry1
+	iny						
+	
+.noCarry1
+	dex		
+	bne		.loop1
+
+	tya						; add num bits on in current mask to running total
+	clc
+	adc		ram_07
+	sta		ram_07
+	
+	inc		ram_14			; move to next mask until 15 have been processed
+	lda		ram_14
+	cmp		#15
+	bne		.top0
+
+	
+	; ram_07 holds number of drawable cells in character
+	; each cell is 8 bytes
+	
+	
+	lda		#8
+	sta		ram_10			; flip bytes in character data - flip (ram_07 * 8) bytes thus we repeat 8x
+	
+.top1	
+	
+	ldy		ram_07
+	dey
+.top2
+	lda		#0
+	sta		ram_08			; temp for storing flipped byte
+	lda		($03),y			; load a byte of character data
+	
+	
+	; ********** Begin flip a byte **********
+	ldx		#8
+.loop2						; flip the bits (end for end) and store in ram_08
+	lsr		ram_08
+	clc
+	asl						; check if next bit is on
+	sta		ram_09			
+	lda		ram_08			
+	bcc		.noCarry2
+	ora		#$80			; if so, set msb of ram_08 on
+	
+.noCarry2
+	sta		ram_08
+	lda		ram_09
+	dex	
+	bne		.loop2
+	; ********** End flip a byte **********
+
+	lda		ram_08
+	sta		($03),y			; overwrite old data
+	
+	dey						; move to next byte of data
+	bpl		.top2
+
+	
+	lda		$03
+	clc
+	adc		ram_07
+	sta		$03
+	bcc		.noCarry3
+	inc		$04
+	
+.noCarry3
+	dec		ram_10
+	bne		.top1
+	
+	
+	
+.end
+	rts
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+
+
+; ram_03		low half of address for that character's draw masks
+; ram_04		high half of address for that character's draw masks	
+
+flipCharacterDrawMasks		SUBROUTINE
+
+	lda		<#RyuStandMask
+	sta		$01
+	lda		>#RyuStandMask
+	sta		$02
+
+	
+	ldx		#15
+	ldy		#0
+.loop	
+	lda		#0
+	sta		ram_03
+
+	lda		($01),y
+	and		#$F0
+	
+	
+.firstHalf
+	cmp		#$70
+	bne		.next1
+	lda		#$E0
+	jmp		.secondHalf
+	
+.next1	
+	cmp		#$E0
+	bne		.next2
+	lda		#$70
+	jmp		.secondHalf
+
+.next2	
+	cmp		#$C0
+	bne		.next3
+	lda		#$30
+	jmp		.secondHalf
+
+.next3	
+	cmp		#$30
+	bne		.secondHalf
+	lda		#$C0
+
+	
+	
+	
+	
+.secondHalf
+	sta		ram_03
+	lda		($01),y
+	and		#$0F
+	
+	cmp		#$07
+	bne		.next5
+	lda		#$0E
+	jmp		.end
+
+.next5	
+	cmp		#$0E
+	bne		.next6
+	lda		#$07
+	jmp		.end
+
+.next6	
+	cmp		#$0C
+	bne		.next7
+	lda		#$03
+	jmp		.end
+
+.next7	
+	cmp		#$03
+	bne		.end
+	lda		#$0C
+
+	
+
+.end	
+	ora		ram_03
+	sta		($01),y
+	iny
+	dex
+	bne		.jmp
+	jmp		.end2
+	
+.jmp
+	jmp		.loop
+
+.end2	
+	rts
+	
+	
+	
+	
 	
 	
 	
@@ -2016,7 +2433,7 @@ p1MasksAddrHigh		.byte	$00
 	
 	
 p1DrawCodes
-	.byte	#0, #44, #30, #59, #15
+	.byte	#0, #15, #30, #44, #58
 	
 	
 	
@@ -2058,21 +2475,19 @@ startScreenLayout	; jump table for skipping to the next appropriate grapic in ST
 	.byte	<#V, >#V, #37
 
 	
-
-	
 RyuDrawCodes
-	.byte	#0, #44, #30, #59, #15
+	.byte	#0, #15, #30, #44, #58
 
 	
 KenDrawCodes
-	.byte	#73, #123, #106, #139, #89
+	.byte	#73, #89, #105, #122, #137
 	
 	
 	
 	
 	ORG		#4927 ; -> page boundaries: 4864 [page] 5120
 	
-startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 145 bytes
+startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 163 bytes
 S
 	.byte	#4, #2, #233, #223, #95, #118, #117, #223, #95, #105
 
@@ -2155,34 +2570,39 @@ RyuStand		; starts at code 0
 	.byte	$06, $08, $08, $18, $3c, $3f, $39, $39, $20, $10, $1f, $80, $80, $80, $80, $80, $c8, $8c, $04, $0e, $9e, $fe, $ce, $4e 
 	.byte	$39, $19, $0d, $01, $01, $01, $01, $01, $80, $80, $ff, $28, $28, $08, $00, $08, $5e, $de, $dc, $40, $40, $40, $40, $40 
 	.byte	$02, $06, $0e, $1b, $31, $40, $40, $7f, $08, $08, $14, $14, $e3, $22, $22, $e3, $70, $10, $10, $3c, $e6, $01, $01, $ff  
-
-RyuStep			; starts at code 15
-	.byte	$00, $00, $00, $01, $01, $01, $01, $7f, $3f, $c0, $80, $00, $00, $ff, $ff, $ff, $80, $60, $20, $20, $20, $e0, $e0, $e0 
-	.byte	$7f, $03, $3f, $3d, $00, $00, $00, $00, $00, $1c, $06, $86, $80, $80, $cf, $40, $20, $60, $a0, $a0, $20, $20, $20, $60 
-	.byte	$00, $00, $01, $01, $01, $01, $03, $03, $40, $20, $ef, $00, $00, $00, $c0, $f0, $c0, $80, $78, $04, $04, $8c, $9c, $fe 
-	.byte	$03, $03, $03, $01, $01, $00, $00, $00, $90, $bf, $b6, $ba, $f4, $88, $80, $82, $ce, $ce, $5e, $5e, $7c, $70, $10, $10 
-	.byte	$00, $00, $01, $01, $02, $02, $02, $03, $82, $82, $82, $c3, $7d, $03, $01, $ff, $10, $10, $10, $3c, $e6, $01, $01, $ff 
-
-RyuPunch		; starts at code 30
-	.byte	$00, $00, $00, $00, $00, $00, $00, $1f, $0f, $30, $20, $40, $40, $7f, $7f, $ff, $e0, $18, $08, $08, $08, $f8, $f8, $f8
-	.byte	$1f, $01, $03, $07, $06, $00, $00, $00, $c0, $c7, $c1, $61, $20, $20, $33, $10, $08, $18, $a8, $a8, $08, $08, $c8, $18
-	.byte	$10, $08, $1c, $23, $60, $f0, $fc, $e4, $30, $38, $5f, $80, $04, $07, $04, $04, $04, $0e, $ff, $07, $07, $ef, $1f, $1e
-	.byte	$ec, $ec, $6f, $7d, $11, $10, $20, $20, $04, $04, $fc, $44, $44, $44, $04, $84
-	.byte	$20, $20, $60, $71, $9f, $80, $80, $ff, $c4, $c4, $a2, $39, $1f, $90, $50, $df, $00, $00, $00, $00, $e0, $10, $08, $f8 
 	
-RyuKick			; starts at code 44
+RyuKick			; starts at code 15
 	.byte	$00, $03, $02, $04, $04, $07, $07, $ff, $fc, $02, $01, $01, $01, $ff, $ff, $ff 
 	.byte	$fc, $1c, $3c, $76, $62, $06, $09, $01, $00, $70, $1a, $1a, $00, $00, $3c, $01, $80, $80, $80, $87, $8f, $bf, $a7, $67, $00, $00, $00, $00, $03, $05, $09, $11 
 	.byte	$01, $06, $08, $08, $18, $3c, $3f, $39, $c1, $3e, $00, $00, $80, $80, $c0, $e0, $6f, $af, $3e, $21, $12, $1c, $38, $70, $31, $59, $89, $09, $09, $1f, $20, $c0 
 	.byte	$39, $39, $19, $0f, $00, $00, $00, $00, $a0, $9f, $8f, $8b, $0a, $0a, $08, $08, $e1, $83, $04, $88, $90, $a0, $40, $40
 	.byte	$08, $08, $08, $08, $0f, $08, $08, $0f, $40, $40, $40, $40, $e0, $10, $08, $f8
 
-RyuBlock		; starts at code 59
+	
+RyuPunch		; starts at code 30
+	.byte	$00, $00, $00, $00, $00, $00, $00, $1f, $0f, $30, $20, $40, $40, $7f, $7f, $ff, $e0, $18, $08, $08, $08, $f8, $f8, $f8
+	.byte	$1f, $01, $03, $07, $06, $00, $00, $00, $c0, $c7, $c1, $61, $20, $20, $33, $10, $08, $18, $a8, $a8, $08, $08, $c8, $18
+	.byte	$10, $08, $1c, $23, $60, $f0, $fc, $e4, $30, $38, $5f, $80, $04, $07, $04, $04, $04, $0e, $ff, $07, $07, $ef, $1f, $1e
+	.byte	$ec, $ec, $6f, $7d, $11, $10, $20, $20, $04, $04, $fc, $44, $44, $44, $04, $84
+	.byte	$20, $20, $60, $71, $9f, $80, $80, $ff, $c4, $c4, $a2, $39, $1f, $90, $50, $df, $00, $00, $00, $00, $e0, $10, $08, $f8 
+
+
+RyuBlock		; starts at code 44
 	.byte	$01, $06, $04, $08, $08, $0f, $0f, $ff, $fc, $03, $01, $01, $01, $ff, $ff, $ff
 	.byte	$f8, $38, $78, $ec, $c4, $04, $06, $02, $01, $e3, $35, $35, $01, $01, $79, $03, $00, $3e, $76, $77, $77, $67, $7f, $7f 
 	.byte	$02, $01, $03, $04, $08, $08, $08, $04, $07, $06, $8b, $70, $00, $00, $1f, $e0, $d7, $f2, $c2, $02, $0c, $10, $e0, $80 
 	.byte	$06, $02, $03, $02, $02, $02, $04, $04, $00, $00, $ff, $28, $28, $08, $00, $10, $80, $80, $80, $80, $80, $80, $80, $80 
 	.byte	$04, $04, $0c, $0e, $13, $10, $10, $1f, $10, $18, $1c, $27, $e3, $12, $0a, $fb, $80, $80, $40, $20, $fc, $02, $01, $ff 	
+	
+
+RyuStep			; starts at code 58
+	.byte	$00, $00, $00, $01, $01, $01, $01, $7f, $3f, $c0, $80, $00, $00, $ff, $ff, $ff, $80, $60, $20, $20, $20, $e0, $e0, $e0 
+	.byte	$7f, $03, $3f, $3d, $00, $00, $00, $00, $00, $1c, $06, $86, $80, $80, $cf, $40, $20, $60, $a0, $a0, $20, $20, $20, $60 
+	.byte	$00, $00, $01, $01, $01, $01, $03, $03, $40, $20, $ef, $00, $00, $00, $c0, $f0, $c0, $80, $78, $04, $04, $8c, $9c, $fe 
+	.byte	$03, $03, $03, $01, $01, $00, $00, $00, $90, $bf, $b6, $ba, $f4, $88, $80, $82, $ce, $ce, $5e, $5e, $7c, $70, $10, $10 
+	.byte	$00, $00, $01, $01, $02, $02, $02, $03, $82, $82, $82, $c3, $7d, $03, $01, $ff, $10, $10, $10, $3c, $e6, $01, $01, $ff 
+
+
 	
 	
 	
@@ -2194,35 +2614,35 @@ KenStand		; starts at code 73
 	.byte	$04, $06, $0b, $1b, $23, $39, $c9, $c7, $02, $3c, $01, $81, $fe, $22, $22, $24, $98, $e8, $0c, $12, $22, $2e, $29, $39
 	.byte	$cf, $d3, $db, $cb, $7f, $3f, $02, $06, $28, $10, $00, $ff, $05, $05, $01, $00, $39, $39, $39, $f9, $3d, $3f, $08, $08
 	.byte	$04, $0c, $3c, $63, $e0, $80, $80, $ff, $0c, $0c, $12, $f3, $21, $21, $21, $e1, $08, $0c, $0f, $f1, $01, $00, $00, $ff, $00, $00, $00, $80, $c0, $40, $40, $c0
-
-KenStep			; starts at code 89
-	.byte	$07, $08, $08, $18, $30, $60, $60, $60, $fc, $04, $03, $03, $00, $00, $00, $00, $00, $00, $80, $80, $c0, $40, $40, $20 
-	.byte	$69, $76, $20, $38, $14, $14, $14, $10, $68, $94, $04, $76, $c2, $c2, $c2, $02, $20, $20, $20, $20, $20, $20, $20, $20 
-	.byte	$00, $00, $00, $00, $00, $00, $03, $03, $10, $18, $2c, $6e, $8f, $e4, $24, $1c, $0a, $f3, $04, $06, $f9, $98, $9b, $92, $60, $40, $60, $80, $00, $80, $80, $40 
-	.byte	$03, $03, $03, $03, $01, $00, $00, $00, $3c, $4c, $6c, $2f, $fc, $fc, $08, $18, $be, $5e, $1f, $ff, $3e, $1f, $1f, $01, $40, $40, $40, $40, $40, $80, $00, $00 
-	.byte	$00, $00, $00, $01, $03, $02, $02, $03, $10, $30, $f1, $8f, $87, $04, $04, $ff, $c1, $c1, $21, $df, $81, $01, $01, $ff
-
-KenPunch		; starts at code 106
+	
+KenKick			; starts at code 89
+	.byte	$00, $00, $00, $01, $03, $03, $03, $01, $3f, $40, $c0, $80, $00, $4b, $b4, $00, $e0, $18, $1c, $06, $02, $41, $a1, $21 
+	.byte	$00, $00, $00, $00, $c0, $a0, $90, $88, $01, $00, $00, $00, $f0, $fc, $e2, $e1, $c3, $a6, $a6, $a6, $80, $67, $70, $df, $b1, $11, $11, $13, $5c, $b0, $20, $e0 
+	.byte	$8c, $9a, $91, $90, $f0, $08, $04, $03, $f7, $f4, $7c, $84, $48, $38, $1c, $0e, $12, $24, $28, $30, $01, $01, $03, $07, $10, $10, $10, $10, $18, $3c, $fc, $9c 
+	.byte	$87, $81, $40, $20, $12, $0a, $06, $02, $05, $f9, $f1, $d1, $50, $50, $10, $10, $9c, $9c, $98, $f0, $00, $00, $00, $00 
+	.byte	$02, $02, $02, $02, $07, $08, $10, $1f, $10, $10, $10, $10, $f0, $10, $10, $f0
+	
+KenPunch		; starts at code 105
 	.byte	$03, $04, $0c, $18, $30, $34, $3b, $10, $fe, $01, $01, $00, $00, $b4, $4a, $02, $00, $80, $c0, $60, $20, $10, $10, $10 
 	.byte	$00, $00, $00, $00, $00, $00, $78, $ff, $1c, $0a, $0a, $0a, $08, $06, $07, $8d, $3b, $61, $61, $61, $05, $7b, $02, $fd, $10, $10, $10, $30, $c0, $00, $00, $80 
 	.byte	$c0, $c8, $88, $7e, $03, $00, $00, $00, $f0, $00, $20, $10, $c3, $3f, $07, $06, $88, $88, $90, $e1, $fe, $fd, $38, $30, $40, $20, $10, $08, $04, $04, $88, $90 
 	.byte	$07, $04, $07, $04, $04, $04, $04, $04, $ff, $00, $ff, $14, $14, $04, $30, $28, $e0, $20, $e0, $20, $20, $20, $20, $20 
 	.byte	$04, $04, $08, $1f, $70, $c0, $80, $ff, $28, $24, $44, $c7, $48, $50, $50, $df, $10, $10, $10, $f0, $10, $10, $10, $f0  
 
-KenKick			; starts at code 123
-	.byte	$00, $00, $00, $01, $03, $03, $03, $01, $3f, $40, $c0, $80, $00, $4b, $b4, $00, $e0, $18, $1c, $06, $02, $41, $a1, $21 
-	.byte	$00, $00, $00, $00, $c0, $a0, $90, $88, $01, $00, $00, $00, $f0, $fc, $e2, $e1, $c3, $a6, $a6, $a6, $80, $67, $70, $df, $b1, $11, $11, $13, $5c, $b0, $20, $e0 
-	.byte	$8c, $9a, $91, $90, $f0, $08, $04, $03, $f7, $f4, $7c, $84, $48, $38, $1c, $0e, $12, $24, $28, $30, $01, $01, $03, $07, $10, $10, $10, $10, $18, $3c, $fc, $9c 
-	.byte	$87, $81, $40, $20, $12, $0a, $06, $02, $05, $f9, $f1, $d1, $50, $50, $10, $10, $9c, $9c, $98, $f0, $00, $00, $00, $00 
-	.byte	$02, $02, $02, $02, $07, $08, $10, $1f, $10, $10, $10, $10, $f0, $10, $10, $f0
-
-KenBlock		; starts at code 139
+KenBlock		; starts at code 122
 	.byte	$00, $00, $00, $00, $01, $31, $79, $e9, $1f, $20, $60, $c0, $80, $a5, $da, $00, $f0, $18, $1c, $06, $02, $a1, $51, $22
 	.byte	$e9, $c8, $f8, $f8, $e8, $78, $40, $44, $c3, $a6, $a6, $a6, $80, $67, $70, $df, $b2, $12, $12, $16, $5c, $98, $10, $ec 
 	.byte	$23, $20, $20, $1c, $03, $00, $00, $00, $82, $02, $02, $07, $8f, $ff, $39, $31, $22, $21, $40, $08, $f0, $e8, $c4, $85, $00, $00, $80, $40, $40, $40, $80, $00 
 	.byte	$1f, $10, $1f, $10, $10, $20, $21, $42, $fe, $02, $fe, $a2, $a2, $22, $82, $42
 	.byte	$00, $00, $01, $01, $07, $0c, $08, $0f, $42, $84, $04, $fc, $04, $05, $05, $fd, $41, $21, $21, $7f, $81, $01, $01, $ff
 
+	
+KenStep			; starts at code 137
+	.byte	$07, $08, $08, $18, $30, $60, $60, $60, $fc, $04, $03, $03, $00, $00, $00, $00, $00, $00, $80, $80, $c0, $40, $40, $20 
+	.byte	$69, $76, $20, $38, $14, $14, $14, $10, $68, $94, $04, $76, $c2, $c2, $c2, $02, $20, $20, $20, $20, $20, $20, $20, $20 
+	.byte	$00, $00, $00, $00, $00, $00, $03, $03, $10, $18, $2c, $6e, $8f, $e4, $24, $1c, $0a, $f3, $04, $06, $f9, $98, $9b, $92, $60, $40, $60, $80, $00, $80, $80, $40 
+	.byte	$03, $03, $03, $03, $01, $00, $00, $00, $3c, $4c, $6c, $2f, $fc, $fc, $08, $18, $be, $5e, $1f, $ff, $3e, $1f, $1f, $01, $40, $40, $40, $40, $40, $80, $00, $00 
+	.byte	$00, $00, $00, $01, $03, $02, $02, $03, $10, $30, $f1, $8f, $87, $04, $04, $ff, $c1, $c1, $21, $df, $81, $01, $01, $ff
 	
 	
 	
@@ -2269,23 +2689,7 @@ digits 			; codes 171 through 180
 	.byte	$00, $7e, $02, $04, $08, $10, $20, $40 
 	.byte	$00, $3c, $42, $42, $3c, $42, $42, $3c
 	.byte	$00, $3c, $42, $42, $3e, $02, $42, $3c 	
-	
-	
-	
 
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
 	
 	
 	
