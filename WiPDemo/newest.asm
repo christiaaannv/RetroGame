@@ -202,10 +202,29 @@ main
 	sta		ram_05
 	lda		>#RyuStand
 	sta		ram_06
+	lda		RyuDrawableCellsCount
+	sta		ram_07
 
 	jsr		flipCharacterData
 	jsr		swapCharacterData
 	jsr		flipCharacterDrawMasks
+
+
+	
+	lda		<#KenStandMask
+	sta		ram_03
+	lda		>#KenStandMask
+	sta		ram_04
+	lda		<#KenStand
+	sta		ram_05
+	lda		>#KenStand
+	sta		ram_06
+	lda		KenDrawableCellsCount
+	sta		ram_07
+	
+;	jsr		flipCharacterData
+;	jsr		swapCharacterData
+;	jsr		flipCharacterDrawMasks
 
 
 
@@ -1732,16 +1751,16 @@ wait				SUBROUTINE
 	
 	
 	
-	
+; changes ram_05 and ram_06
 swapCharacterData		SUBROUTINE
 	
-	lda		ram_03
+	lda		ram_03			; used for loading masks sequentially
 	sta		$01
 	lda		ram_04
 	sta		$02
 
 	
-	lda		ram_05
+	lda		ram_05			; used for swapping data from one location to another
 	sta		$03
 	sta		$05
 	lda		ram_06
@@ -1749,10 +1768,9 @@ swapCharacterData		SUBROUTINE
 	sta		$06
 		
 	lda		#0
-	sta		ram_07
-	sta		ram_08
-	sta		ram_10			; loop over nMasks
-	sta		ram_22
+	sta		ram_07			; First half of mask storage
+	sta		ram_08			; second half of mask storage
+	sta		ram_10			; loop control over nMasks
 	
 .init
 	lda		#0
@@ -1760,7 +1778,7 @@ swapCharacterData		SUBROUTINE
 	
 
 	ldy		ram_10
-	cpy		#15; change to 15 to loop through all masks
+	cpy		#15				; 15 masks per character
 	bne		.notDone
 	jmp		.rts
 	
@@ -1863,7 +1881,7 @@ swapCharacterData		SUBROUTINE
 	jmp		.noBorrow
 	
 .borrow
-	dec		$06
+;	dec		$06
 
 .noBorrow	
 	jmp		.top3
@@ -1904,67 +1922,25 @@ swapCharacterData		SUBROUTINE
 	
 	
 	
-	
+; ram_05 lower half of address of character data
+; ram_06 upper half of address of character data
+; ram_07 number of drawable cells for character (total number of draw codes)
 	
 	
 flipCharacterData		SUBROUTINE
 
-	lda		ram_03
-	sta		$01
-	lda		ram_04
-	sta		$02
-	
 	lda		ram_05
 	sta		$03
 	lda		ram_06
 	sta		$04
 	
-	
-	lda		#0
-	sta		ram_07			; init number of drawable cells = 0
-	sta		ram_14			; init current mask being processed = 0
-
-	
-	; tally number of bits on in all masks for character graphics (nDrawableCells)
-.top0
-	ldy		ram_14
-	lda		($01),y			; load the next mask
-
-
-	ldy		#0				; init num drawable cells in current mask
-	ldx		#8				; repeat 8 times (one for each bit in mask)
-.loop1
-	clc
-	asl
-	bcc		.noCarry1
-	iny						
-	
-.noCarry1
-	dex		
-	bne		.loop1
-
-	tya						; add num bits on in current mask to running total
-	clc
-	adc		ram_07
-	sta		ram_07
-	
-	inc		ram_14			; move to next mask until 15 have been processed
-	lda		ram_14
-	cmp		#15
-	bne		.top0
-
-	
-	; ram_07 holds number of drawable cells in character
-	; each cell is 8 bytes
-	
-	
 	lda		#8
 	sta		ram_10			; flip bytes in character data - flip (ram_07 * 8) bytes thus we repeat 8x
-	
+
 .top1	
 	
-	ldy		ram_07
-	dey
+	ldy		#0
+;	dey
 .top2
 	lda		#0
 	sta		ram_08			; temp for storing flipped byte
@@ -1979,10 +1955,10 @@ flipCharacterData		SUBROUTINE
 	asl						; check if next bit is on
 	sta		ram_09			
 	lda		ram_08			
-	bcc		.noCarry2
+	bcc		.noCarry1
 	ora		#$80			; if so, set msb of ram_08 on
 	
-.noCarry2
+.noCarry1
 	sta		ram_08
 	lda		ram_09
 	dex	
@@ -1992,18 +1968,19 @@ flipCharacterData		SUBROUTINE
 	lda		ram_08
 	sta		($03),y			; overwrite old data
 	
-	dey						; move to next byte of data
-	bpl		.top2
+	iny						; move to next byte of data
+	cpy		ram_07
+	bne		.top2
 
 	
 	lda		$03
 	clc
 	adc		ram_07
 	sta		$03
-	bcc		.noCarry3
+	bcc		.noCarry2
 	inc		$04
 	
-.noCarry3
+.noCarry2
 	dec		ram_10
 	bne		.top1
 	
@@ -2033,9 +2010,9 @@ flipCharacterData		SUBROUTINE
 
 flipCharacterDrawMasks		SUBROUTINE
 
-	lda		<#RyuStandMask
+	lda		ram_03
 	sta		$01
-	lda		>#RyuStandMask
+	lda		ram_04
 	sta		$02
 
 	
@@ -2072,9 +2049,7 @@ flipCharacterDrawMasks		SUBROUTINE
 	bne		.secondHalf
 	lda		#$C0
 
-	
-	
-	
+		
 	
 .secondHalf
 	sta		ram_03
@@ -2084,39 +2059,34 @@ flipCharacterDrawMasks		SUBROUTINE
 	cmp		#$07
 	bne		.next5
 	lda		#$0E
-	jmp		.end
+	jmp		.nextMask
 
 .next5	
 	cmp		#$0E
 	bne		.next6
 	lda		#$07
-	jmp		.end
+	jmp		.nextMask
 
 .next6	
 	cmp		#$0C
 	bne		.next7
 	lda		#$03
-	jmp		.end
+	jmp		.nextMask
 
 .next7	
 	cmp		#$03
-	bne		.end
+	bne		.nextMask
 	lda		#$0C
 
 	
 
-.end	
+.nextMask	
 	ora		ram_03
 	sta		($01),y
 	iny
 	dex
-	bne		.jmp
-	jmp		.end2
-	
-.jmp
-	jmp		.loop
+	bne		.loop
 
-.end2	
 	rts
 	
 	
@@ -2478,10 +2448,14 @@ startScreenLayout	; jump table for skipping to the next appropriate grapic in ST
 RyuDrawCodes
 	.byte	#0, #15, #30, #44, #58
 
+RyuDrawableCellsCount
+	.byte	#73
 	
 KenDrawCodes
 	.byte	#73, #89, #105, #122, #137
 	
+KenDrawableCellsCount
+	.byte	#81
 	
 	
 	
