@@ -42,6 +42,7 @@ SCREENMEMORY2			.equ	$1EFF
 GAMEMODESCREENLOC1		.equ	#8142
 GAMEMODESCREENLOC2		.equ	#8164
 
+CHARACTERSELECTSCREENLOC .equ 	#7902
 
 SPEAKER1				.equ	$900A
 SPEAKER2				.equ	$900B
@@ -135,6 +136,18 @@ KEELING					.equ	#6
 
 
 
+BLACK					.equ	#0
+WHITE					.equ	#1
+RED						.equ	#2
+CYAN					.equ	#3
+PURPLE					.equ	#4
+GREEN					.equ	#5
+BLUE					.equ	#6
+YELLOW					.equ	#7
+
+
+MASKSPERCHARACTER		.equ	#15
+
 main
 
 ;	lda		#128
@@ -188,7 +201,7 @@ main
 	lda		#32					; fill screen uses the current empty space code to fill the screen
 	sta		emptySpaceCode		; the code is different when using built in vic20 graphics (start screen) vs custom graphics
 
-	ldx		#2					; color code to set character color (red)
+	ldx		#RED				; character color
 	jsr		fillScreen
 
 	
@@ -205,9 +218,9 @@ main
 	lda		RyuDrawableCellsCount
 	sta		ram_07
 
-	jsr		flipCharacterData
-	jsr		swapCharacterData
-	jsr		flipCharacterDrawMasks
+;	jsr		flipCharacterData
+;	jsr		swapCharacterData
+;	jsr		flipCharacterDrawMasks
 
 
 	
@@ -258,7 +271,15 @@ nogo
 	bne		nogo
 ; out of start screen loop
 	
+	lda		#32					; fill screen uses the current empty space code to fill the screen
+	sta		emptySpaceCode		; the code is different when using built in vic20 graphics (start screen) vs custom graphics
 
+	ldx		#RED				; character color
+	jsr		fillScreen
+
+	jsr		drawCharacterSelectIntro
+	
+	
 	
 	lda		#$FD					; load code for telling vic chip where to look for character data
 	sta		$9005					; store in Vic chip (36869)
@@ -267,7 +288,7 @@ nogo
 	lda		#EMPTYSPACECODE		
 	sta		emptySpaceCode
 
-	ldx		#1					
+	ldx		#WHITE					
 	jsr		fillScreen				; fill screen with custom empty space code after changing character memory location
 
 	
@@ -275,10 +296,10 @@ nogo
 	jsr		initRoundIndicators		; init and draw orund indicators
 
 
-	lda		#6
+	lda		#BLUE
 	sta		p1Color
 	
-	lda		#4
+	lda		#PURPLE
 	sta		p2Color
 
 	; Init AI difficulty control variables (can be hardcoded into initial ram versus set here)
@@ -490,7 +511,7 @@ checkMatchWin		SUBROUTINE
 	sta		currentRound
 	jsr		initRoundIndicators
 	jsr		initLifebars
-	jsr		wait
+	ldy		#6
 	jsr		wait
 	jmp		.end
 
@@ -505,7 +526,7 @@ checkMatchWin		SUBROUTINE
 	sta		currentRound
 	jsr		initRoundIndicators
 	jsr		initLifebars
-	jsr		wait
+	ldy		#6
 	jsr		wait
 
 	
@@ -704,7 +725,7 @@ initColors		SUBROUTINE
 
 
 	ldy		#6
-	lda		#5						; set the life bars to green
+	lda		#GREEN					; set the life bars to green
 .loop1
 	
 	sta		P1LIFEBARCOLORSTART,y
@@ -715,12 +736,12 @@ initColors		SUBROUTINE
 
 
 	ldy		#6
-	lda		#7						; set the round indicators to yellow
+	lda		#YELLOW					; set the round indicators to yellow
 .loop2
 	
 	sta		P1ROUNDWINSCOLORSTART,y
 	sta		P2ROUNDWINSCOLORSTART,y
-	
+	 
 	dey
 	bpl		.loop2
 	
@@ -1552,6 +1573,7 @@ drawStreetFighterBanner		SUBROUTINE
 		inc		ram_04					; increment once to skip high address of next letter graphic to draw
 		inc		ram_04					; increment once to skip offset in screen memory to begin drawing at
 
+		ldy		#3
 		jsr		wait
 		
 		lda		ram_04
@@ -1648,15 +1670,7 @@ drawCurrentRound			SUBROUTINE
 	
 	
 	inc 	currentRound
-	jsr		wait
-	jsr		wait
-	jsr		wait
-	jsr		wait
-	jsr		wait
-	jsr		wait
-	jsr		wait
-	jsr		wait
-	jsr		wait
+	ldy		#30
 	jsr		wait
 	jsr		eraseCurrentRound
 
@@ -1721,6 +1735,42 @@ drawGameModeIndicator		SUBROUTINE
 	rts
 
 
+	
+	
+
+drawCharacterSelectIntro		SUBROUTINE
+
+	ldy		#0
+	sty		ram_04
+	
+.loop
+	ldy		ram_04
+	lda		CharacterSelectionString,y
+	sta		CHARACTERSELECTSCREENLOC,y
+
+	lda		#$E8
+	sta		SPEAKER3
+	
+	ldy		#1
+	jsr		wait
+
+	lda		#0
+	sta		SPEAKER3
+
+	
+	inc		ram_04
+	lda		ram_04
+	cmp		#18
+	bne		.loop
+	
+
+	ldy		#16
+	jsr		wait
+
+	
+	rts
+	
+	
 
 	
 	
@@ -1730,7 +1780,6 @@ wait				SUBROUTINE
 	and		#$DF		; set timer to operate in 1 shot mode		
 	sta		ACR
 	
-	ldy		#3
 
 .top	
 	lda		#$00
@@ -1778,7 +1827,7 @@ swapCharacterData		SUBROUTINE
 	
 
 	ldy		ram_10
-	cpy		#15				; 15 masks per character
+	cpy		#MASKSPERCHARACTER
 	bne		.notDone
 	jmp		.rts
 	
@@ -2016,7 +2065,7 @@ flipCharacterDrawMasks		SUBROUTINE
 	sta		$02
 
 	
-	ldx		#15
+	ldx		#MASKSPERCHARACTER
 	ldy		#0
 .loop	
 	lda		#0
@@ -2390,7 +2439,7 @@ distanceApart		.byte	$00
 userPress			.byte	$00
 
 
-gameplayMode		.byte	$00
+gameplayMode		.byte	$00			; 0 -> 1 Player			1 -> 2 Player
 
 
 
@@ -2400,7 +2449,21 @@ p1DrawCodesAddrHigh	.byte	$00
 p1MasksAddrLow		.byte	$00
 p1MasksAddrHigh		.byte	$00
 
-	
+p1CharacterSelect	.byte	$00
+
+
+
+p2DrawCodesAddrLow	.byte	$00
+p2DrawCodesAddrHigh	.byte	$00
+
+p2MasksAddrLow		.byte	$00
+p2MasksAddrHigh		.byte	$00
+
+
+p2CharacterSelect	.byte	$00
+
+
+
 	
 p1DrawCodes
 	.byte	#0, #15, #30, #44, #58
@@ -2424,6 +2487,12 @@ p2LifeBarTicks
 ; player
 startGameString
     .byte	#16, #12, #1, #25, #5, #18
+	
+; Select A Character	
+CharacterSelectionString
+    .byte	#19, #5, #12, #5, #3, #20, #32, #1, #32, #3, #8, #1, #18, #1, #3, #20, #5, #18
+
+	
 	
 startScreenLayout	; jump table for skipping to the next appropriate grapic in STREET FIGHTER graphics
 					; [low of address for graphic], [high of address for graphic], [scr memory offset to draw at]
