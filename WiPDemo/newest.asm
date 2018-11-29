@@ -183,8 +183,10 @@ main
 	lda		#$51		; D1 with high bit off (gets toggled on/off in irq)
 	sta		SPEAKER2
 
+	lda		#1
+	sta		musicOnOffState
 
-	lda		#$04
+	lda		#8
 	sta		VOLUME
 	
 	lda		#$80
@@ -274,11 +276,41 @@ nogo
 	lda		#32					; fill screen uses the current empty space code to fill the screen
 	sta		emptySpaceCode		; the code is different when using built in vic20 graphics (start screen) vs custom graphics
 
+	jsr		fadeMusicOut
+
 	ldx		#RED				; character color
 	jsr		fillScreen
-
-	jsr		drawCharacterSelectIntro
 	
+	lda		#0
+	sta		musicOnOffState
+	lda		SPEAKER1
+	sta		ram_20
+	lda		SPEAKER2
+	sta		ram_21
+	lda		SPEAKER3
+	sta		ram_22
+	lda		SPEAKER4
+	sta		ram_23
+	lda		#0
+	sta		SPEAKER1
+	sta		SPEAKER2
+	sta		SPEAKER3
+	sta		SPEAKER4
+	
+	jsr		drawCharacterSelectIntro
+
+
+	lda		ram_20
+	sta		SPEAKER1
+	lda		ram_21
+	sta		SPEAKER2
+	lda		ram_22
+	sta		SPEAKER3
+	lda		ram_23
+	sta		SPEAKER4
+	
+	lda		#1
+	sta		musicOnOffState
 	
 	
 	lda		#$FD					; load code for telling vic chip where to look for character data
@@ -511,7 +543,7 @@ checkMatchWin		SUBROUTINE
 	sta		currentRound
 	jsr		initRoundIndicators
 	jsr		initLifebars
-	ldy		#6
+	ldy		#8
 	jsr		wait
 	jmp		.end
 
@@ -526,7 +558,7 @@ checkMatchWin		SUBROUTINE
 	sta		currentRound
 	jsr		initRoundIndicators
 	jsr		initLifebars
-	ldy		#6
+	ldy		#8
 	jsr		wait
 
 	
@@ -1573,7 +1605,7 @@ drawStreetFighterBanner		SUBROUTINE
 		inc		ram_04					; increment once to skip high address of next letter graphic to draw
 		inc		ram_04					; increment once to skip offset in screen memory to begin drawing at
 
-		ldy		#3
+		ldy		#4
 		jsr		wait
 		
 		lda		ram_04
@@ -1740,6 +1772,8 @@ drawGameModeIndicator		SUBROUTINE
 
 drawCharacterSelectIntro		SUBROUTINE
 
+	jsr		fadeMusicIn
+
 	ldy		#0
 	sty		ram_04
 	
@@ -1750,12 +1784,15 @@ drawCharacterSelectIntro		SUBROUTINE
 
 	lda		#$E8
 	sta		SPEAKER3
-	
+
 	ldy		#1
 	jsr		wait
 
 	lda		#0
 	sta		SPEAKER3
+
+	ldy		#1
+	jsr		wait
 
 	
 	inc		ram_04
@@ -1764,7 +1801,7 @@ drawCharacterSelectIntro		SUBROUTINE
 	bne		.loop
 	
 
-	ldy		#16
+	ldy		#20
 	jsr		wait
 
 	
@@ -1784,7 +1821,7 @@ wait				SUBROUTINE
 .top	
 	lda		#$00
 	sta		T2LOW		; store low order byte of timer	countdown	
-	lda		#$FF
+	lda		#$AF
 	sta		T2HIGH		; store high order byte of timer (also starts the countdown)
 		
 .loop 
@@ -2142,13 +2179,45 @@ flipCharacterDrawMasks		SUBROUTINE
 	
 	
 	
+fadeMusicOut		SUBROUTINE	
+
+.loop
+	dec		VOLUME
+	ldy		#3
+	jsr		wait
+	lda		VOLUME
+	bne		.loop	
+	
+
+	rts
+
+
+	
+fadeMusicIn		SUBROUTINE	
+
+.loop
+	inc		VOLUME
+	ldy		#3
+	jsr		wait
+	lda		VOLUME
+	cmp		#8
+	bne		.loop	
+	
+
+	rts
+	
+		
 	
 	
 	
 ;	ORG		$1D00		; 256 bytes before where screen memory starts
 irqHandler
 
+	lda		musicOnOffState
+	bne 	.decTimer
+	jmp		.skipMusic
 	
+.decTimer
 	dec		ram_00
 	beq		.beginMusic
 	jmp		.skipMusic
@@ -2440,7 +2509,7 @@ userPress			.byte	$00
 
 
 gameplayMode		.byte	$00			; 0 -> 1 Player			1 -> 2 Player
-
+musicOnOffState		.byte	$00
 
 
 p1DrawCodesAddrLow	.byte	$00
