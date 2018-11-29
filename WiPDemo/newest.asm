@@ -276,41 +276,20 @@ nogo
 	lda		#32					; fill screen uses the current empty space code to fill the screen
 	sta		emptySpaceCode		; the code is different when using built in vic20 graphics (start screen) vs custom graphics
 
-	jsr		fadeMusicOut
 
 	ldx		#RED				; character color
 	jsr		fillScreen
 	
-	lda		#0
-	sta		musicOnOffState
-	lda		SPEAKER1
-	sta		ram_20
-	lda		SPEAKER2
-	sta		ram_21
-	lda		SPEAKER3
-	sta		ram_22
-	lda		SPEAKER4
-	sta		ram_23
-	lda		#0
-	sta		SPEAKER1
-	sta		SPEAKER2
-	sta		SPEAKER3
-	sta		SPEAKER4
-	
+
+	jsr		fadeMusicOut
+	jsr		musicOff
+	jsr		fadeMusicIn
 	jsr		drawCharacterSelectIntro
 
-
-	lda		ram_20
-	sta		SPEAKER1
-	lda		ram_21
-	sta		SPEAKER2
-	lda		ram_22
-	sta		SPEAKER3
-	lda		ram_23
-	sta		SPEAKER4
 	
-	lda		#1
-	sta		musicOnOffState
+	jsr		fadeMusicOut
+	jsr		musicOn
+	jsr		fadeMusicIn
 	
 	
 	lda		#$FD					; load code for telling vic chip where to look for character data
@@ -849,6 +828,15 @@ doUserAction		SUBROUTINE
 ;						5 = flying kick
 ;						6 = was struck
 
+	lda		<#SCREENMEMORY2
+	sta		$01
+	lda		>#SCREENMEMORY2
+	sta		$02
+	lda		<#COLORCONTROL2
+	sta		$03
+	lda		>#COLORCONTROL2
+	sta		$04
+	
 	
 	lda		p1Action			; If not 0, p1 is mid animation (set to 0 in irq when anim timer reaches 0)
 	beq		.drawUserDefault	
@@ -1099,7 +1087,15 @@ doAIAction		SUBROUTINE
 ;						2 = left
 ;						3 = right
 
-
+	lda		<#SCREENMEMORY2
+	sta		$01
+	lda		>#SCREENMEMORY2
+	sta		$02
+	lda		<#COLORCONTROL2
+	sta		$03
+	lda		>#COLORCONTROL2
+	sta		$04
+	
 	lda		p2Action
 	bne		.checkTimeOut
 
@@ -1458,9 +1454,9 @@ drawFighterB		SUBROUTINE
 	
 	
 .skipEmpty
-	sta		SCREENMEMORY2,y	; store screen code in screen memory offset by y
+	sta		($01),y			; store screen code in screen memory offset by y
 	lda		drawColor
-	sta		COLORCONTROL2,y	; store color code in color control offset by y
+	sta		($03),y			; store color code in color control offset by y
 	iny						; increment current offset for each cell drawn
 
 	dec		ram_04			; decrement nColumns left in current row
@@ -1772,8 +1768,6 @@ drawGameModeIndicator		SUBROUTINE
 
 drawCharacterSelectIntro		SUBROUTINE
 
-	jsr		fadeMusicIn
-
 	ldy		#0
 	sty		ram_04
 	
@@ -1805,6 +1799,19 @@ drawCharacterSelectIntro		SUBROUTINE
 	jsr		wait
 
 	
+	rts
+	
+	
+	
+	
+	
+drawCharacterSelectionScreen		SUBROUTINE
+
+	
+
+
+
+
 	rts
 	
 	
@@ -2207,6 +2214,48 @@ fadeMusicIn		SUBROUTINE
 	rts
 	
 		
+
+musicOff		SUBROUTINE	
+
+	lda		#0
+	sta		musicOnOffState
+	lda		SPEAKER1
+	sta		ram_20
+	lda		SPEAKER2
+	sta		ram_21
+	lda		SPEAKER3
+	sta		ram_22
+	lda		SPEAKER4
+	sta		ram_23
+	lda		#0
+	sta		SPEAKER1
+	sta		SPEAKER2
+	sta		SPEAKER3
+	sta		SPEAKER4
+
+	rts
+
+
+	
+musicOn		SUBROUTINE	
+
+	lda		ram_20
+	sta		SPEAKER1
+	lda		ram_21
+	sta		SPEAKER2
+	lda		ram_22
+	sta		SPEAKER3
+	lda		ram_23
+	sta		SPEAKER4
+	
+	lda		#1
+	sta		musicOnOffState
+
+	rts
+
+	
+	
+
 	
 	
 	
