@@ -146,7 +146,7 @@ BLUE					.equ	#6
 YELLOW					.equ	#7
 
 
-MASKSPERCHARACTER		.equ	#15
+MASKSPERCHARACTER		.equ	#18
 
 main
 
@@ -341,27 +341,23 @@ nogo
 	
 
 
+	; will be done in player select function to init match
+	lda		<#KenStandMask
+	sta		p2MasksAddrLow
+	lda		>#KenStandMask
+	sta		p2MasksAddrHigh
 
 
 	
 mainLoop	SUBROUTINE
 
-	jsr		checkRoundWin			; checks if the round was won this iteration and draws round banner if appropriate
 
 
 	jsr		clearInputBuffer		; clears user input from buffer (presses can accumulate leading to strange behavior)
 	
-;	lda		p1Action
-;	cmp		#KEELING
-;	bne		.getInput
-;	sta		userPress
-;	jmp		.skipGetInput
-	
-;.getInput
 	jsr		getInput				
 	sta		userPress				; store result in ram location (not efficient but more explicit)			
 
-;.skipGetInput
 	jsr		doUserAction			; process the user's input possibly producing some action
 	
 	jsr		getAINextAction
@@ -370,6 +366,9 @@ mainLoop	SUBROUTINE
 	jsr		checkP1Struck
 	jsr		checkP2Struck
 
+
+	jsr		checkRoundWin			; checks if the round was won this iteration and draws round banner if appropriate
+									; updateHUD uses information from round win check to draw HUD
 
 	jsr		updateHUD
 	jsr		drawLifebars
@@ -416,6 +415,8 @@ checkP1Struck	SUBROUTINE
 	lda		p1Action			; check if p1 was blocking during the strike
 	cmp		#BLOCKING
 	beq		.setStruckState
+	cmp		#KEELING
+	beq		.setStruckState
 	ldx		#1
 
 .setStruckState
@@ -456,6 +457,8 @@ checkP2Struck	SUBROUTINE
 	lda		p2Action			; check if p2 was blocking during the strike
 	cmp		#BLOCKING
 	beq		.setStruckState
+	cmp		#KEELING
+	beq		.setStruckState
 	ldx		#1
 
 .setStruckState
@@ -489,6 +492,8 @@ checkRoundWin	SUBROUTINE
 	sta		p2RoundWins,x
 	sta		drawRoundBanner
 	jsr		initLifebars
+	jsr		initRound
+
 	jmp		.end
 
 	
@@ -508,6 +513,7 @@ checkRoundWin	SUBROUTINE
 	sta		p1RoundWins,x
 	sta		drawRoundBanner
 	jsr		initLifebars
+	jsr		initRound
 
 	
 .end
@@ -534,6 +540,8 @@ checkMatchWin		SUBROUTINE
 	jsr		initLifebars
 	ldy		#8
 	jsr		wait
+
+	jsr		initRound
 	jmp		.end
 
 	
@@ -550,6 +558,7 @@ checkMatchWin		SUBROUTINE
 	ldy		#8
 	jsr		wait
 
+	jsr		initRound
 	
 .end
 	rts
@@ -591,7 +600,31 @@ initRoundIndicators		SUBROUTINE
 	rts
 	
 	
+	
+	
+	
+initRound		SUBROUTINE
+	
+	lda		p1XPos
+	sta		drawXPos
+	jsr		clearFighter
 
+	lda		p2XPos
+	sta		drawXPos
+	jsr		clearFighter
+
+	
+	lda		#P1INITXPOS
+	sta		p1XPos
+	lda		#P1INITYPOS
+	sta		p1YPos
+	
+	lda		#P2INITXPOS
+	sta		p2XPos
+	lda		#P2INITYPOS
+	sta		p2YPos
+
+	rts
 
 	
 	
@@ -2684,6 +2717,8 @@ p2CharacterSelect	.byte	$00
 p1DrawCodes
 	.byte	#27, #42, #57, #71, #85, #100
 	
+p2DrawCodes
+	.byte	#114, #130, #146, #163, #178, #195
 	
 	
 p1RoundWins
