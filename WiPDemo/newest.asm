@@ -329,8 +329,7 @@ nogo
 	
 	; Can also be hardcoded - testing purposes
 	lda		#1
-	sta		currentRound
-	sta		drawRoundBanner
+	sta		roundWasWon
 	
 	
 	; will be done in player select function to init match
@@ -352,6 +351,8 @@ nogo
 mainLoop	SUBROUTINE
 
 
+	jsr		processWinState	
+	
 
 	jsr		clearInputBuffer		; clears user input from buffer (presses can accumulate leading to strange behavior)
 	
@@ -377,12 +378,7 @@ mainLoop	SUBROUTINE
 	jsr		checkMatchWin
 
 
-	
-	lda		drawRoundBanner	
-	beq		.skip
-	jsr		drawCurrentRound
-.skip
-	
+		
 	jmp		mainLoop
 
 
@@ -469,7 +465,45 @@ checkP2Struck	SUBROUTINE
 	rts	
 	
 	
+
 	
+	
+
+
+processWinState		SUBROUTINE
+
+	
+
+	lda		roundWasWon
+	beq		.skip1
+
+.loop1
+	lda		p1Action
+	adc		p2Action
+	bne		.loop1
+	
+	inc 	currentRound
+	jsr		initLifebars
+	jsr		initRound
+	jsr		drawCurrentRound
+	lda		#0
+	sta		roundWasWon
+	
+.skip1
+	
+	
+	lda		matchWasWon
+	beq		.skip2
+
+
+	lda		#0
+	sta		matchWasWon
+
+
+.skip2
+
+
+	rts
 	
 	
 	
@@ -490,9 +524,7 @@ checkRoundWin	SUBROUTINE
 	dex
 	lda		#1
 	sta		p2RoundWins,x
-	sta		drawRoundBanner
-	jsr		initLifebars
-	jsr		initRound
+	sta		roundWasWon
 
 	jmp		.end
 
@@ -511,9 +543,7 @@ checkRoundWin	SUBROUTINE
 	dex
 	lda		#1
 	sta		p1RoundWins,x
-	sta		drawRoundBanner
-	jsr		initLifebars
-	jsr		initRound
+	sta		roundWasWon
 
 	
 .end
@@ -535,6 +565,7 @@ checkMatchWin		SUBROUTINE
 	
 	lda		#1
 	sta		p1WonMatch
+	sta		matchWasWon
 	sta		currentRound
 	jsr		initRoundIndicators
 	jsr		initLifebars
@@ -552,6 +583,7 @@ checkMatchWin		SUBROUTINE
 
 	lda		#1
 	sta		p2WonMatch
+	sta		matchWasWon
 	sta		currentRound
 	jsr		initRoundIndicators
 	jsr		initLifebars
@@ -624,6 +656,7 @@ initRound		SUBROUTINE
 	lda		#P2INITYPOS
 	sta		p2YPos
 
+	
 	rts
 
 	
@@ -1782,13 +1815,12 @@ drawCurrentRound			SUBROUTINE
 
 
 	ldx		#ROUNDLETTERCODES
-	ldy		#0
-	sty		drawRoundBanner
 	
+	ldy		#0
 .loop
 	txa
 	sta		PRINTROUNDSTART,y
-	lda		#2
+	lda		#RED
 	sta		PRINTROUNDCOLORSTART,y
 
 	iny
@@ -1803,11 +1835,10 @@ drawCurrentRound			SUBROUTINE
 	
 	ldy		#7
 	sta		PRINTROUNDSTART,y
-	lda		#2
+	lda		#RED
 	sta		PRINTROUNDCOLORSTART,y
 	
 	
-	inc 	currentRound
 	ldy		#30
 	jsr		wait
 	jsr		eraseCurrentRound
@@ -2638,6 +2669,9 @@ drawRoundBanner		.byte	$00
 
 
 updateXPosPrevs		.byte	$00
+
+roundWasWon			.byte	$00
+matchWasWon			.byte	$00
 
 
 ram_00				.byte	$00		; used in irq handler, volatile
