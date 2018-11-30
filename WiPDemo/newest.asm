@@ -67,6 +67,10 @@ P1ROUNDWINSCOLORSTART	.equ	#38466
 P2ROUNDWINSCOLORSTART	.equ	#38481
 
 
+P1SCORESTART			.equ	#7812
+P2SCORESTART			.equ	#7829
+
+
 PRINTROUNDSTART			.equ	#7841
 PRINTROUNDCOLORSTART	.equ	#38561
 
@@ -315,7 +319,7 @@ nogo
 
 	; Init AI difficulty control variables (can be hardcoded into initial ram versus set here)
 	; This is just for testing
-	lda		#20
+	lda		#16
 	sta		aiDodgeRand				; the higher this is, the more likely ai will move right when struck
 	lda		#60
 	sta		aiBlockRand				; the higher this is, the more likely ai will block successfully
@@ -329,7 +333,7 @@ nogo
 	
 	; Can also be hardcoded - testing purposes
 	lda		#1
-	sta		roundWasWon
+	sta		roundWasWon	;set to 1 so round banner is drawn
 	
 	
 	; will be done in player select function to init match
@@ -350,10 +354,10 @@ nogo
 	
 mainLoop	SUBROUTINE
 
-
 	jsr		processWinState	
 	
-
+	jsr		drawScore
+	
 	jsr		clearInputBuffer		; clears user input from buffer (presses can accumulate leading to strange behavior)
 	
 	jsr		getInput				
@@ -368,7 +372,7 @@ mainLoop	SUBROUTINE
 	jsr		checkP2Struck
 
 
-	jsr		checkRoundWin			; checks if the round was won this iteration and draws round banner if appropriate
+	jsr		checkRoundWin			; checks if the round was won this iteration and updates state vars accordingly
 									; updateHUD uses information from round win check to draw HUD
 
 	jsr		updateHUD
@@ -466,6 +470,164 @@ checkP2Struck	SUBROUTINE
 	
 	
 
+
+
+
+	
+	
+	
+updateScore		SUBROUTINE
+	
+	lda		p1WonMatch
+	beq		.player2Won
+	
+	lda		<#p1Score
+	sta		$01
+	lda		>#p1Score
+	sta		$02
+	
+	lda		<#p1LifeBarTicks
+	sta		$03
+	lda		>#p1LifeBarTicks
+	sta		$04
+
+	lda		<#p2RoundWins
+	sta		$05
+	lda		>#p2RoundWins
+	sta		$06
+	jmp		.tallyScore
+	
+	
+.player2Won
+	lda		<#p2Score
+	sta		$01
+	lda		>#p2Score
+	sta		$02
+	
+	lda		<#p2LifeBarTicks
+	sta		$03
+	lda		>#p2LifeBarTicks
+	sta		$04
+
+	lda		<#p1RoundWins
+	sta		$05
+	lda		>#p1RoundWins
+	sta		$06
+
+
+
+	
+.tallyScore
+	
+	ldy		#6
+.loop1	
+	lda		($03),y				; loop through lifebar ticks and find first non-zero
+	beq		.next1
+	jmp		.scoreLifeRemaining
+	
+.next1
+	dey
+	bpl		.loop1
+	
+
+	
+	
+.scoreLifeRemaining
+	iny							; 7 life bar sections, y started at 6 for loop control
+	tya
+	asl							; two ticks per section so multiply by 2
+	
+	sta		ram_20
+	sty		ram_21
+	sta		DEBUGSCRA
+	ldy		#255
+	jsr		wait
+	lda		ram_20
+	ldy		ram_21
+	
+	
+	sta		ram_03
+	ldy		#2
+	lda		($01),y				; load current 100s digit
+	clc
+	adc		#2					; add 200 for match win
+	adc		ram_03
+	
+	
+	
+	sta		ram_03				; store 100s digit for processing (carries)
+	
+
+	
+.getOpponentRoundWins
+
+	ldx		#4
+	ldy		#0
+.loop4
+	lda		($05),y
+	beq		.break
+	iny
+	dex
+	bne		.loop4
+
+
+.break
+	lda		ram_03				; load 100's digit
+	sty		ram_03				; store number of round wins for opponent
+	clc
+	adc		#4					; start with 400 - 100 for each round the opponent didn't win
+	sec
+	sbc		ram_03				; subtract 100 for each opponent round win
+
+
+	
+	ldx		#0
+.checkForCarries
+	cmp		#27					; check for carry in 100s digit
+	bmi		.noCarry
+	inx							; tally number of carries
+	sec
+	sbc		#10
+	jmp		.checkForCarries
+
+	
+	
+.noCarry
+	ldy		#2
+	sta		($01),y				; store 100's digit
+
+	stx		ram_03				; store number of carries
+	dey
+	lda		($01),y				; load 1000's digit
+	clc
+	adc		ram_03				; add number of carries
+
+
+	cmp		#27
+	bmi		.noCarry2
+	sec		
+	sbc		#10
+	jmp		.carry
+	
+.noCarry2	
+	sta		($01),y				
+	jmp		.end
+
+
+.carry
+	sta		($01),y
+	dey
+	lda		($01),y
+	clc
+	adc		#1
+	sta		($01),y
+	
+	
+.end	
+	rts
+
+	
+	
 	
 	
 
@@ -476,7 +638,7 @@ processWinState		SUBROUTINE
 
 	lda		roundWasWon
 	beq		.skip1
-
+	
 .loop1
 	lda		p1Action
 	adc		p2Action
@@ -490,19 +652,41 @@ processWinState		SUBROUTINE
 	sta		roundWasWon
 	
 .skip1
-	
-	
+
 	lda		matchWasWon
-	beq		.skip2
+	beq		.end
 
-
-	lda		#0
-	sta		matchWasWon
+	lda		gameplayMode
+	bne		.skip2
+	
+	lda		p1WonMatch
+	beq		.skip2					; if p1 won match, increase difficulty
+	clc
+	lda		#5
+	adc		aiStrikeRand
+	sta		aiStrikeRand
+	lda		#5
+	adc		aiBlockRand
+	sta		aiBlockRand
+	dec		currentLevelTimeOut
+	dec		currentLevelTimeOut
+	jmp		.skip2
+	
+	
 
 
 .skip2
 
+	jsr		updateScore
 
+	lda		#0
+	sta		matchWasWon
+	sta		p1WonMatch
+	sta		p2WonMatch
+
+	
+
+.end
 	rts
 	
 	
@@ -965,8 +1149,12 @@ doUserAction		SUBROUTINE
 	beq		.tryLeft
 	cmp		#4
 	beq		.tryRight
+	cmp		#$FE
+	beq		.jmpEnd
 	cmp		#$FF
 	bne		.valid
+	
+.jmpEnd	
 	jmp		.end
 
 .valid	
@@ -1797,15 +1985,27 @@ drawStreetFighterBanner		SUBROUTINE
 	jmp		.loop1
 	
 	
-	
-	
-
-	
 .end	
 	rts
 
 
 	
+	
+	
+drawScore		SUBROUTINE
+
+	ldy		#4
+.loop
+	lda		p1Score,y
+	sta		P1SCORESTART,y
+	
+	lda		p2Score,y
+	sta		P2SCORESTART,y
+	
+	dey
+	bpl		.loop
+
+	.rts
 	
 	
 	
@@ -2636,7 +2836,7 @@ p1YPos				.byte	#P1INITYPOS
 p1Action			.byte	$00
 p1AnimTimer			.byte	$00
 p1Color				.byte	$00
-p1Score				.byte	$00
+p1Score				.byte	#DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES
 p1ScreamTimer		.byte	$00
 
 
@@ -2648,7 +2848,7 @@ p2YPos				.byte	#P2INITYPOS
 p2Action			.byte	$00
 p2AnimTimer			.byte	$00
 p2Color				.byte	$00
-p2Score				.byte	$00
+p2Score				.byte	#DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES
 p2ScreamTimer		.byte	$00
 
 
