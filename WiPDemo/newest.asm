@@ -2611,7 +2611,31 @@ musicOn		SUBROUTINE
 	rts
 
 	
+
+; $01 - lower half of from address
+; $02 - upper half of from address
+; #03 - lower half of to address
+; $04 - upper half of to address
+; y - nBytes to swap
 	
+swapData			SUBROUTINE
+
+	dey
+	
+.loop
+	lda		($01),y
+	sta		ram_03
+	lda		($03),y
+	sta		($01),y
+	lda		ram_03
+	sta		($03),y
+	
+
+	dey
+	bpl		.loop
+
+	rts
+
 
 	
 	
