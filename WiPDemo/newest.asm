@@ -74,7 +74,20 @@ P2SCORESTART			.equ	#7829
 PRINTROUNDSTART			.equ	#7841
 PRINTROUNDCOLORSTART	.equ	#38561
 
+PRINTROUNDNUMSTART		.equ	#7848
+PRINTROUNDNUMCOLORSTART	.equ	#38569
+
+
 EMPTYSPACEADDR			.equ	#6488
+
+CHARACTERSELECT01		.equ	#45			;offset from SCREENMEMORY1
+CHARACTERSELECT02		.equ	#53			;offset from SCREENMEMORY1
+CHARACTERSELECT03		.equ	#61			;offset from SCREENMEMORY1
+CHARACTERSELECT04		.equ	#7739		; not right yet
+CHARACTERSELECT05		.equ	#7874		; not right yet
+CHARACTERSELECT06		.equ	#8003		; not right yet
+CHARSELECTINDICATOR1	.equ	#7702		
+CHARSELECTINDICATOR2	.equ	#8032	
 
 DEBUGSCR1				.equ	$1E00
 DEBUGSCR2				.equ	$1E02
@@ -128,6 +141,7 @@ RIGHTKEY				.equ	#1
 DOWNKEY					.equ	#2
 SKEY					.equ	#3
 DKEY					.equ	#4
+WKEY					.equ	#$FE
 
 
 STANDING				.equ	#0
@@ -157,6 +171,32 @@ main
 ;	lda		#128
 ;	sta		$028A
 	
+	lda		<#RyuStandMask
+	sta		ram_03
+	lda		>#RyuStandMask
+	sta		ram_04
+	lda		<#RyuStand
+	sta		ram_05
+	lda		>#RyuStand
+	sta		ram_06
+	lda		RyuDrawableCellsCount
+	sta		ram_07
+
+	jsr		flipCharacterData
+	jsr		swapCharacterData
+	jsr		flipCharacterDrawMasks
+
+
+	lda		<#KenStand
+	sta		$01
+	lda		>#KenStand
+	sta		$02
+	lda		<#FangKick
+	sta		$03
+	lda		>#FangKick
+	sta		$04
+	ldy		#128
+	jsr		swapData
 
 	
 	ldx		#$08
@@ -172,9 +212,7 @@ main
 	lda		#$a0		; bit 7 = 1 and bit 5 = 1. This means we are enabling interrupts (bit 7) for timer 2 (bit 5)
 	sta		IER			; store in the interrupt enable register
 	
-	lda		ACR
-	and		#$DF		; set timer2 to operate in 1 shot mode		
-	sta		ACR
+
 
 	; This will interrupt 125x per second
 	lda		#$40
@@ -187,12 +225,9 @@ main
 	lda		#$51		; D1 with high bit off (gets toggled on/off in irq)
 	sta		SPEAKER2
 
-	lda		#1
-	sta		musicOnOffState
+;	lda		#1
+;	sta		musicOnOffState
 
-	lda		#8
-	sta		VOLUME
-	
 	lda		#$80
 	sta		ram_02
 	
@@ -201,53 +236,16 @@ main
 
 	lda		#6
 	sta		ram_00
+	sta		VOLUME
 	; Finish Init Music
 
 	
 	lda		#32					; fill screen uses the current empty space code to fill the screen
-	sta		emptySpaceCode		; the code is different when using built in vic20 graphics (start screen) vs custom graphics
 
-	ldx		#RED				; character color
 	jsr		fillScreen
 
-	
-	
-	
-	lda		<#RyuStandMask
-	sta		ram_03
-	lda		>#RyuStandMask
-	sta		ram_04
-	lda		<#RyuStand
-	sta		ram_05
-	lda		>#RyuStand
-	sta		ram_06
-	lda		RyuDrawableCellsCount
-	sta		ram_07
-
-;	jsr		flipCharacterData
-;	jsr		swapCharacterData
-;	jsr		flipCharacterDrawMasks
-
-
-	
-	lda		<#KenStandMask
-	sta		ram_03
-	lda		>#KenStandMask
-	sta		ram_04
-	lda		<#KenStand
-	sta		ram_05
-	lda		>#KenStand
-	sta		ram_06
-	lda		KenDrawableCellsCount
-	sta		ram_07
-	
-;	jsr		flipCharacterData
-;	jsr		swapCharacterData
-;	jsr		flipCharacterDrawMasks
-
-
-
-
+	lda		#RED				; character color
+	jsr		colorScreen
 	
 	
 	jsr		drawStreetFighterBanner
@@ -278,77 +276,250 @@ nogo
 ; out of start screen loop
 	
 	lda		#32					; fill screen uses the current empty space code to fill the screen
-	sta		emptySpaceCode		; the code is different when using built in vic20 graphics (start screen) vs custom graphics
-
-
-	ldx		#RED				; character color
 	jsr		fillScreen
 	
-
-	jsr		fadeMusicOut
-	jsr		musicOff
-	jsr		fadeMusicIn
-	jsr		drawCharacterSelectIntro
+	lda		#RED				; character color
+	jsr		colorScreen
 
 	
-	jsr		fadeMusicOut
-	jsr		musicOn
-	jsr		fadeMusicIn
+;	jsr		fadeMusicOut
+;	jsr		musicOff
+;	jsr		fadeMusicIn
+	jsr		drawCharacterSelectIntro
 	
 	
 	lda		#$FD					; load code for telling vic chip where to look for character data
 	sta		$9005					; store in Vic chip (36869)
+
 	
-
 	lda		#EMPTYSPACECODE		
-	sta		emptySpaceCode
-
-	ldx		#WHITE					
 	jsr		fillScreen				; fill screen with custom empty space code after changing character memory location
 
 	
-	jsr		initColors				; init colors of static screen items (lifebars, etc.)
-	jsr		initRoundIndicators		; init and draw orund indicators
+	jsr		drawCharacterSelectionScreen
+	lda		#2
+	sta		p1CharacterSelect
+	sta		p2CharacterSelect
+	jsr		drawCharSelectIndicator
+nogo2
+	jsr		getInput
+	cmp		#AKEY
+	bne		.checkDKey2
 
-
-	lda		#BLUE
-	sta		p1Color
-	
-	lda		#PURPLE
-	sta		p2Color
-
-	; Init AI difficulty control variables (can be hardcoded into initial ram versus set here)
-	; This is just for testing
-	lda		#16
-	sta		aiDodgeRand				; the higher this is, the more likely ai will move right when struck
-	lda		#60
-	sta		aiBlockRand				; the higher this is, the more likely ai will block successfully
-	lda		#40
-	sta		aiStrikeRand			; the higher this is, the more likely ai will strike when in range
-	lda		#29
-	sta		aiKickPunchRand			; the higher this is, the more likely the ai will punch rather than kick when striking
-	lda		#12
-	sta		currentLevelTimeOut		; the lower this is, the faster ai will make decisions
+	lda		p1CharacterSelect
+	cmp		#2
+	beq		nogo2
+	sec
+	sbc		#8
+	sta		p1CharacterSelect
+	jsr		drawCharSelectIndicator
+	jmp		nogo2	
 
 	
-	; Can also be hardcoded - testing purposes
-	lda		#1
-	sta		roundWasWon	;set to 1 so round banner is drawn
+.checkDKey2
+	cmp		#DKEY
+	bne		.checkWKey
+	
+	lda		p1CharacterSelect
+	cmp		#18
+	beq		nogo2
+	clc
+	adc		#8
+	sta		p1CharacterSelect
+	jsr		drawCharSelectIndicator	
+	jmp		nogo2
+
+.checkWKey
+	cmp		#WKEY
+	bne		.checkStart2
+
+	ldy		p1Color
+	iny
+	cpy		#8
+	bne		.allG
+	ldy		#1
+
+.allG	
+	sty		p1Color
+	jsr		drawCharacterSelectionScreen
+	jmp		nogo2
+	
+.checkStart2
+	cmp		#SKEY
+	bne		nogo2	
 	
 	
-	; will be done in player select function to init match
+	
+	
+	
+	
+	
+	lda		#EMPTYSPACECODE		
+	sta		emptySpaceCode
+
+	jsr		fillScreen				; fill screen with custom empty space code after changing character memory location
+
+	lda		#RED
+	jsr		colorScreen
+
+	
+	lda		<#KenStand
+	sta		$01
+	lda		>#KenStand
+	sta		$02
+	lda		<#FangKick
+	sta		$03
+	lda		>#FangKick
+	sta		$04
+	ldy		#128
+	jsr		swapData
+
+	
+	lda		p1CharacterSelect
+	cmp		#2
+	bne		.kenAndFang
+	jmp		.ryu
+
+	
+	
+.kenAndFang
+	
+	lda		<#RyuDrawCodes
+	sta		$01
+	lda		>#RyuDrawCodes
+	sta		$02
+	lda		<#p2DrawCodes
+	sta		$03
+	lda		>#p2DrawCodes
+	sta		$04
+	ldy		#6
+	jsr		transferData
+
 	lda		<#RyuStandMask
-	sta		p1MasksAddrLow
+	sta		p2MasksAddrLow
 	lda		>#RyuStandMask
+	sta		p2MasksAddrHigh	
+
+
+	lda		<#FangStand
+	sta		ram_05
+	lda		>#FangStand
+	sta		ram_06
+
+	lda		<#p1DrawCodes
+	sta		$03
+	lda		>#p1DrawCodes
+	sta		$04
+
+	
+	lda		p1CharacterSelect
+	cmp		#10	
+	beq		.doKen
+	jmp		.doFang
+	
+.doKen
+	lda		<#KenDrawCodes
+	sta		$01
+	lda		>#KenDrawCodes
+	sta		$02
+	ldy		#6
+	jsr		transferData
+
+	jsr		swapKenAndFang
+	
+	lda		<#KenStandMask
+	sta		p1MasksAddrLow
+	lda		>#KenStandMask
 	sta		p1MasksAddrHigh
 	
+	lda		<#KenStandMask
+	sta		ram_03
+	lda		>#KenStandMask
+	sta		ram_04
 
+	lda		KenDrawableCellsCount
+	sta		ram_07
 
-	; will be done in player select function to init match
+	
+	jmp		.allGo
+	
+	
+.doFang
+	lda		<#FangDrawCodes
+	sta		$01
+	lda		>#FangDrawCodes
+	sta		$02
+	ldy		#6
+	jsr		transferData
+
+	lda		<#FangStandMask
+	sta		p1MasksAddrLow
+	lda		>#FangStandMask
+	sta		p1MasksAddrHigh
+	
+	lda		<#FangStandMask
+	sta		ram_03
+	lda		>#FangStandMask
+	sta		ram_04
+
+	
+	lda		FangDrawableCellsCount
+	sta		ram_07
+	jmp		.allGo
+
+	
+		
+.ryu
+	lda		<#RyuStandMask
+	sta		ram_03
+	lda		>#RyuStandMask
+	sta		ram_04
+	lda		<#RyuStand
+	sta		ram_05
+	lda		>#RyuStand
+	sta		ram_06
+	lda		RyuDrawableCellsCount
+	sta		ram_07
+
+	
+	jsr		rand
+	cmp		#29
+	bmi		.allGo
+	
+	jsr		swapKenAndFang
+	
+	lda		<#KenDrawCodes
+	sta		$01
+	lda		>#KenDrawCodes
+	sta		$02
+	lda		<#p2DrawCodes
+	sta		$03
+	lda		>#p2DrawCodes
+	sta		$04
+	ldy		#6
+	jsr		transferData
+	
+
 	lda		<#KenStandMask
 	sta		p2MasksAddrLow
 	lda		>#KenStandMask
-	sta		p2MasksAddrHigh
+	sta		p2MasksAddrHigh	
+	
+.allGo	
+	jsr		flipCharacterData
+	jsr		swapCharacterData
+	jsr		flipCharacterDrawMasks
+
+
+.test1	
+;	jsr		fadeMusicOut
+;	jsr		musicOn
+;	jsr		fadeMusicIn
+	
+
+	jsr		initColors				; init colors of static screen items (lifebars, etc.)
+	jsr		initRoundIndicators		; init and draw orund indicators
+
 
 
 	
@@ -360,14 +531,56 @@ mainLoop	SUBROUTINE
 	
 	jsr		clearInputBuffer		; clears user input from buffer (presses can accumulate leading to strange behavior)
 	
+	lda		#0
+	sta		userPress
+	
 	jsr		getInput				
 	sta		userPress				; store result in ram location (not efficient but more explicit)			
 
+
+	lda		p1AnimTimer
+	and		#$1F
+	sta		p1AnimTimer
+
+;	lda		#$78
+;	sta		maxLeft
+;	lda		p2XPos
+;	sta		maxRight
+
+;	lda		<#p1Action
+;	sta		$01
+;	lda		>#p1Action
+;	sta		$02
+;	lda		<#userAction
+;	sta		$03
+;	lda		>#userAction
+;	sta		$04
+;	ldy		#15
+;	jsr		transferData
+
+	lda		p1Color
+	sta		drawColor
 	jsr		doUserAction			; process the user's input possibly producing some action
+
 	
+;	lda		<#userAction
+;	sta		$01
+;	lda		>#userAction
+;	sta		$02
+;	lda		<#p1Action
+;	sta		$03
+;	lda		>#p1Action
+;	sta		$04
+;	ldy		#7
+;	jsr		transferData
+
+
 	jsr		getAINextAction
+	lda		p2Color
+	sta		drawColor
 	jsr		doAIAction
 
+	
 	jsr		checkP1Struck
 	jsr		checkP2Struck
 
@@ -387,11 +600,6 @@ mainLoop	SUBROUTINE
 
 
 	
-	
-	
-	
-	
-	
 
 
 	
@@ -410,6 +618,8 @@ checkP1Struck	SUBROUTINE
 	cmp		#4					; check if within striking range
 	bne		.setStruckState		; if not, set p1WasStruck to 0 - false
 	
+	stx		p2IsStriking
+
 	
 .wasP1Struck	
 	lda		p1Action			; check if p1 was blocking during the strike
@@ -451,6 +661,8 @@ checkP2Struck	SUBROUTINE
 	sbc		p1XPosPrev
 	cmp		#4					; check if within striking range
 	bne		.setStruckState
+
+	stx		p1IsStriking
 	
 	
 .wasP2Struck	
@@ -485,11 +697,6 @@ updateScore		SUBROUTINE
 	sta		$01
 	lda		>#p1Score
 	sta		$02
-	
-	lda		<#p1LifeBarTicks
-	sta		$03
-	lda		>#p1LifeBarTicks
-	sta		$04
 
 	lda		<#p2RoundWins
 	sta		$05
@@ -503,11 +710,6 @@ updateScore		SUBROUTINE
 	sta		$01
 	lda		>#p2Score
 	sta		$02
-	
-	lda		<#p2LifeBarTicks
-	sta		$03
-	lda		>#p2LifeBarTicks
-	sta		$04
 
 	lda		<#p1RoundWins
 	sta		$05
@@ -518,42 +720,10 @@ updateScore		SUBROUTINE
 
 	
 .tallyScore
-	
-	ldy		#6
-.loop1	
-	lda		($03),y				; loop through lifebar ticks and find first non-zero
-	beq		.next1
-	jmp		.scoreLifeRemaining
-	
-.next1
-	dey
-	bpl		.loop1
-	
-
-	
-	
-.scoreLifeRemaining
-	iny							; 7 life bar sections, y started at 6 for loop control
-	tya
-	asl							; two ticks per section so multiply by 2
-	
-	sta		ram_20
-	sty		ram_21
-	sta		DEBUGSCRA
-	ldy		#255
-	jsr		wait
-	lda		ram_20
-	ldy		ram_21
-	
-	
-	sta		ram_03
 	ldy		#2
 	lda		($01),y				; load current 100s digit
 	clc
-	adc		#2					; add 200 for match win
-	adc		ram_03
-	
-	
+	adc		#20					; add 2000 for match win
 	
 	sta		ram_03				; store 100s digit for processing (carries)
 	
@@ -561,25 +731,22 @@ updateScore		SUBROUTINE
 	
 .getOpponentRoundWins
 
-	ldx		#4
-	ldy		#0
+	ldy		#3
 .loop4
 	lda		($05),y
-	beq		.break
-	iny
-	dex
-	bne		.loop4
+	bne		.break
+	dey
+	bpl		.loop4
 
-
+	
 .break
+	iny
+
+	sty		ram_04
 	lda		ram_03				; load 100's digit
-	sty		ram_03				; store number of round wins for opponent
-	clc
-	adc		#4					; start with 400 - 100 for each round the opponent didn't win
 	sec
-	sbc		ram_03				; subtract 100 for each opponent round win
-
-
+	sbc		ram_04				; subtract 100 for each opponent round win
+	
 	
 	ldx		#0
 .checkForCarries
@@ -662,23 +829,30 @@ processWinState		SUBROUTINE
 	lda		p1WonMatch
 	beq		.skip2					; if p1 won match, increase difficulty
 	clc
-	lda		#5
+	lda		#25
 	adc		aiStrikeRand
 	sta		aiStrikeRand
-	lda		#5
+	lda		#25
 	adc		aiBlockRand
 	sta		aiBlockRand
 	dec		currentLevelTimeOut
 	dec		currentLevelTimeOut
-	jmp		.skip2
+	lda		currentLevelTimeOut
+	cmp		#0
+	bne		.skip2
+	lda		#2
+	sta		currentLevelTimeOut
 	
 	
 
 
 .skip2
-
 	jsr		updateScore
 
+	jsr		initRoundIndicators
+	jsr		initLifebars
+
+	
 	lda		#0
 	sta		matchWasWon
 	sta		p1WonMatch
@@ -747,12 +921,11 @@ checkMatchWin		SUBROUTINE
 	beq		.checkP2Win
 
 	
-	lda		#1
-	sta		p1WonMatch
-	sta		matchWasWon
-	sta		currentRound
-	jsr		initRoundIndicators
-	jsr		initLifebars
+	ldy		#1
+	sty		p1WonMatch
+	sty		matchWasWon
+	dey
+	sty		currentRound
 	ldy		#8
 	jsr		wait
 
@@ -765,12 +938,11 @@ checkMatchWin		SUBROUTINE
 	lda		p2RoundWins,x
 	beq		.end
 
-	lda		#1
-	sta		p2WonMatch
-	sta		matchWasWon
-	sta		currentRound
-	jsr		initRoundIndicators
-	jsr		initLifebars
+	ldy		#1
+	sty		p2WonMatch
+	sty		matchWasWon
+	dey
+	sty		currentRound
 	ldy		#8
 	jsr		wait
 
@@ -1133,7 +1305,7 @@ doUserAction		SUBROUTINE
 
 	
 .drawUserDefault				; when p1Action is set to 0 in the IRQ, draw the fighter's default stance
-	lda		p1DrawCodes			; draw fighter graphic starting from p1 code 0
+	lda		p1DrawCodes		; draw fighter graphic starting from p1 code 0
 	sta		drawCode
 	lda		p1MasksAddrLow
 	sta		$05
@@ -1144,6 +1316,12 @@ doUserAction		SUBROUTINE
 	jsr		drawFighterB
 
 
+checkTimeOut
+	lda		p1Timeout
+	beq		.processInput
+	rts
+	
+	
 .processInput
 	lda		userPress
 	beq		.tryLeft
@@ -1191,21 +1369,21 @@ doUserAction		SUBROUTINE
 	lda		p1XPos
 	sta		drawXPos
 	jsr		clearFighter		; otherwise, clear p1
-	dec		p1XPos				; make new p1 position 1 column to left
+	dec		p1XPos			; make new p1 position 1 column to left
 	jmp		.setActionStepping
 
 .tryRight
 	lda		p1XPos
 	clc
 	adc		#4
-	cmp		p2XPos				; is p1 at p2?
+	cmp		p2XPos			; is p1 at p2?
 	bne		.moveRight			; if so, no movement right
 	rts
 .moveRight
 	lda		p1XPos
 	sta		drawXPos
 	jsr		clearFighter		; otherwise, clear p1
-	inc		p1XPos				; make new p1 position 1 column to right
+	inc		p1XPos			; make new p1 position 1 column to right
 
 
 .setActionStepping
@@ -1239,11 +1417,14 @@ doUserAction		SUBROUTINE
 	jmp		.setTimer
 	
 .keeling2
-	lda		#44		
+	lda		#27
 	
 .setTimer	
 	sta		p1AnimTimer
 
+	
+	lda		#2
+	sta		p1Timeout
 	
 .end
 	rts
@@ -1255,19 +1436,6 @@ doUserAction		SUBROUTINE
 	
 
 getAINextAction		SUBROUTINE
-
-
-;opponentAction			0 = nothing
-;						1 = kick
-;						2 = punch
-;						3 = block
-;						4 = step
-
-;opponentDir			
-;						0 = up
-;						1 = down	
-;						2 = left
-;						3 = right
 
 	lda		aiTimeOut
 	beq		.continue
@@ -1348,6 +1516,7 @@ getAINextAction		SUBROUTINE
 	lda		#STEPPING
 	sta		p2Action
 
+	
 	rts
 	
 
@@ -1356,6 +1525,7 @@ getAINextAction		SUBROUTINE
 	sta		aiDir
 	lda		#STEPPING
 	sta		p2Action
+
 	
 	rts
 	
@@ -1365,24 +1535,10 @@ getAINextAction		SUBROUTINE
 	
 	
 	
-; Can shorten reasonably well
-; better to do this once we decide if we are adding more characters
-; instead of loading and storing the appropriate mask every time, load it once at the beginning
-; then, knowing that each mask is 3 bytes long, add the appropriate offset to the lower half of
-; the address (will work as long as the masks don't cross a page boundary) 
+	
+	
 doAIAction		SUBROUTINE
 
-;opponentAction			0 = nothing
-;						1 = kick
-;						2 = punch
-;						3 = block
-;						4 = step
-
-;opponentDir			
-;						0 = up
-;						1 = down	
-;						2 = left
-;						3 = right
 
 	lda		<#SCREENMEMORY2
 	sta		$01
@@ -1404,12 +1560,6 @@ doAIAction		SUBROUTINE
 	bne		.rts
 	lda		#1
 	sta		p2IsMidKeel
-	lda		#195
-	sta		drawCode
-	lda		<#KenKeelMask
-	sta		$05
-	lda		>#KenKeelMask
-	sta		$06
 	jmp		.draw
 	
 .rts
@@ -1422,11 +1572,11 @@ doAIAction		SUBROUTINE
 
 	
 .drawP2Default	
-	lda		#114				; fighter default stance code
+	lda		p2DrawCodes		; fighter default stance code
 	sta		drawCode
-	lda		<#KenStandMask
+	lda		p2MasksAddrLow
 	sta		$05
-	lda		>#KenStandMask
+	lda		p2MasksAddrHigh
 	sta		$06
 
 	lda		p2XPos
@@ -1437,8 +1587,24 @@ doAIAction		SUBROUTINE
 	
 .checkTimeOut
 	lda		aiTimeOut
-	beq		.checkKick
+	beq		.checkBlock
 	rts
+	
+	
+.checkBlock
+	lda		p2Action
+	cmp		#BLOCKING
+	bne		.checkKeeling
+	
+	lda		#1
+	sta		p2IsBlocking
+	jmp		.draw
+
+.checkKeeling
+	cmp		#KEELING
+	bne		.checkKick
+	jmp		.draw
+
 	
 .checkKick
 	lda		p2Action
@@ -1448,46 +1614,16 @@ doAIAction		SUBROUTINE
 	lda		#1
 	sta		p2IsStriking
 
-	lda		#130					; fighter kick graphic code
-	sta		drawCode
-	lda		<#KenKickMask
-	sta		$05
-	lda		>#KenKickMask
-	sta		$06
-
 	jmp		.draw
 
 	
 .checkPunch
 	cmp		#PUNCHING
-	bne		.checkBlock
+	bne		.checkDirection
 
 	lda		#1
 	sta		p2IsStriking
 	
-	lda		#146				; fighter punch graphic code
-	sta		drawCode
-	lda		<#KenPunchMask
-	sta		$05
-	lda		>#KenPunchMask
-	sta		$06
-
-	jmp		.draw
-	
-.checkBlock
-	cmp		#BLOCKING
-	bne		.checkDirection
-
-	lda		#1
-	sta		p2IsBlocking
-
-	lda		#163				; fighter block graphic code
-	sta		drawCode
-	lda		<#KenBlockMask
-	sta		$05
-	lda		>#KenBlockMask
-	sta		$06
-
 	jmp		.draw
 
 	
@@ -1508,7 +1644,7 @@ doAIAction		SUBROUTINE
 
 	
 	dec		p2XPos					; make new p2 position 1 column to left
-	jmp		.doStepAnimation	
+	jmp		.draw	
 
 			
 	
@@ -1526,24 +1662,31 @@ doAIAction		SUBROUTINE
 
 	
 	inc		p2XPos					; make new p2 position 1 column to right
+	jmp		.draw
 	
 	
-	
-.doStepAnimation
-	lda		#178					; fighter step graphic code
-	sta		drawCode
-	lda		<#KenStepMask
-	sta		$05
-	lda		>#KenStepMask
-	sta		$06
 
 
 
 .draw
 
-	lda		p2XPos
+	lda		p2Action			; each mask is 3 bytes, and each action corresponds to a mask for that graphic
+	tay
+	clc
+	adc		p2Action
+	adc		p2Action			; skip 3 * p1Action bytes from the beginning of the graphic masks for that fighter
+	sta		ram_04
+	lda		p2MasksAddrLow
+	adc		ram_04
+	sta		$05					; store for indirect indexed addressing in drawFighter
+	lda		p2MasksAddrHigh
+	sta		$06
+	
+	lda		p2DrawCodes,y		; store the draw code for the beginning of the graphic being drawn
+	sta		drawCode
+	
+	lda		p2XPos				; store the current position of the fighter as a screen memory offset
 	sta		drawXPos
-	jsr		clearFighter		
 	jsr		drawFighterB
 
 	
@@ -1565,11 +1708,6 @@ doAIAction		SUBROUTINE
 
 .end
 	rts
-	
-	
-	
-	
-	
 	
 	
 	
@@ -1605,33 +1743,54 @@ rand	 SUBROUTINE			; Pseudo Random Number Generator
 	
 	
 	
+	
 
 ; draws empty space characters over the entire screen
 ; load 'x' with the color to set for all screen characters
 fillScreen		SUBROUTINE
 
-	ldy		#$00
-.loop1
-	txa
-	sta		COLORCONTROL1,y
-	lda		emptySpaceCode
+	ldy		#255
+.loop3
 	sta		SCREENMEMORY1,y
-	iny
-	cpy		#$FF
-	bne		.loop1
+	dey
+	cpy		#255
+	bne		.loop3
 
 
-	ldy		#$00
-.loop2
-	txa	
-	sta		COLORCONTROL2,y
-	lda		emptySpaceCode
+	ldy		#250
+.loop4
 	sta		SCREENMEMORY2,y
-	iny
-	cpy		#$FF
-	bne		.loop2
+	dey
+	cpy		#255
+	bne		.loop4
 	
 	rts
+	
+
+	
+colorScreen			SUBROUTINE
+
+	ldy		#255
+.loop3
+	sta		COLORCONTROL1,y
+	dey
+	cpy		#255
+	bne		.loop3
+
+
+	ldy		#250
+.loop4
+	sta		COLORCONTROL2,y
+	dey
+	cpy		#255
+	bne		.loop4
+	
+	rts
+
+	
+	
+	
+	
 	
 ;p1Action				0 = standing
 ;						1 = kick
@@ -1643,9 +1802,6 @@ fillScreen		SUBROUTINE
 
 	
 	
-; don't really need this routine
-; just jsr GETIN and use the value provided to determine actions
-
 getInput		SUBROUTINE		; loads a with..
 								; 2 -> down (punch)
 								; 3 -> s (block)
@@ -1697,9 +1853,17 @@ getInput		SUBROUTINE		; loads a with..
 	
 .checkForRightKey
 	cmp		#29
-	bne		.return
+	bne		.checkForWKey
 	
 	lda		#RIGHTKEY
+	rts
+	
+	
+.checkForWKey
+	cmp		#87
+	bne		.return
+	
+	lda		#WKEY
 	rts
 	
 .return
@@ -1732,99 +1896,7 @@ clearInputBuffer		SUBROUTINE
 	
 	
 	
-	
-; draws the fighter's current animation frame
-; drawXPos must hold the lower byte of the address in screen memory for the top left cell of the character
-; drawYPos must hold the upper byte of the address in screen memory for the top left cell of the character (future - jumpn')
-; drawCode must hold the character code to begin printing from (depends on the fighter's animation frame)
-; zero page $05 and $06 must hold the address of the draw mask to use for the fighter graphic
 
-
-drawFighterB		SUBROUTINE
-
-
-	lda		drawCode		; use the current draw code to choose character color
-	tax						; transfer to x for later
-	cmp		#114			; might not work so well with more than two characters
-	bpl		.itsP2
-	lda		p1Color
-	sta		drawColor
-	jmp		.drawTop
-
-.itsP2
-	lda		p2Color
-	sta		drawColor
-
-
-.drawTop	
-
-	ldy		#0				; load the mask for the first 2 rows of the fighter graphic
-	lda		($05),y
-	sta		columnMask
-	ldy		drawXPos		; load the offset from SCREENMEMORY2 to begin drawing the fighter graphic
-	lda		#6		
-	sta		ram_03			; nRows per fighter graphic
-
-.loop1Init
-	lda		#4
-	sta		ram_04			; nColumns per row Row
-
-.loop1
-	lda		columnMask		; test if the current cell is blank or not
-	clc
-	asl
-	sta		columnMask
-	bcc		.empty			; if so, fill with empty space
-	
-	txa						; otherwise, transfer the drawCode into a
-	inx						; increment character code for next iteration
-	jmp		.skipEmpty
-	
-.empty	
-	lda		emptySpaceCode	; load the empty space code
-	
-	
-.skipEmpty
-	sta		($01),y			; store screen code in screen memory offset by y
-	lda		drawColor
-	sta		($03),y			; store color code in color control offset by y
-	iny						; increment current offset for each cell drawn
-
-	dec		ram_04			; decrement nColumns left in current row
-	bne		.loop1			; if not done, do next cell in current row
-
-	tya
-	clc
-	adc		#18				; currentOffset = currentOffset + (nColumnsInScreen(22) - nColumnsInGraphic(4))
-	tay						; move back into y
-	
-	dec		ram_03			; decrement number of rows left in fighter graphic
-	beq		.return			; if 0 rows left, we're done drawing
-	lda		ram_03
-	clc
-	lsr						; test if it's odd (each column mask covers 2 rows, so ..
-	bcs		.loop1Init		; ..if odd, print next row with second half of same mask)
-
-	sty		ram_06			; save current offset in ram
-	inc		$05				; otherwise...
-	ldy		#0				; use for indirect indexed addressing
-	lda		($05),y			; load the next mask
-	sta		columnMask
-	ldy		ram_06			; restore current offset
-	jmp		.loop1Init		; draw next two rows
-	
-	
-	
-.return	
-	rts	
-
-		
-
-	
-columnMask
-	.byte		$00
-
-	
 
 
 
@@ -1955,16 +2027,16 @@ drawStreetFighterBanner		SUBROUTINE
 
 .printInstructions
 
-	lda		#49
+	lda		#49						; '1'
 	sta		GAMEMODESCREENLOC2
 
 	ldy		#14
 	lda		#50
-	sta		GAMEMODESCREENLOC2,y
+	sta		GAMEMODESCREENLOC2,y	; '2'
 	
 
 	ldx		#5
-	ldy		#21
+	ldy		#21						
 .loop1    
 	lda		startGameString,x
 	sta		GAMEMODESCREENLOC2,y
@@ -2020,8 +2092,6 @@ drawCurrentRound			SUBROUTINE
 .loop
 	txa
 	sta		PRINTROUNDSTART,y
-	lda		#RED
-	sta		PRINTROUNDCOLORSTART,y
 
 	iny
 	inx
@@ -2033,16 +2103,12 @@ drawCurrentRound			SUBROUTINE
 	clc
 	adc		#DIGITCODES
 	
-	ldy		#7
-	sta		PRINTROUNDSTART,y
-	lda		#RED
-	sta		PRINTROUNDCOLORSTART,y
+	sta		PRINTROUNDNUMSTART
 	
 	
 	ldy		#30
 	jsr		wait
 	jsr		eraseCurrentRound
-
 	
 
 	rts
@@ -2106,6 +2172,41 @@ drawGameModeIndicator		SUBROUTINE
 
 	
 	
+; load ram_03 with the player 1 selection
+; load ram_04 with the player 2 selection
+; 2  - ryu
+; 12 - ken
+; 20 - fang
+drawCharSelectIndicator		SUBROUTINE	
+
+	lda		#EMPTYSPACECODE
+	ldy		#21
+.loop1
+	sta		CHARSELECTINDICATOR1,y
+	dey
+	bpl		.loop1
+
+;	ldy		#21
+;.loop2
+;	sta		CHARSELECTINDICATOR2,y
+;	dey
+;	bpl		.loop2
+
+	
+	
+	lda		#16
+
+	ldy		p1CharacterSelect
+	sta		CHARSELECTINDICATOR1,y
+	
+;	ldy		p2CharacterSelect
+;	sta		CHARSELECTINDICATOR2,y
+
+
+	rts
+
+	
+	
 
 drawCharacterSelectIntro		SUBROUTINE
 
@@ -2149,26 +2250,51 @@ drawCharacterSelectIntro		SUBROUTINE
 drawCharacterSelectionScreen		SUBROUTINE
 
 	
-	lda		<#SCREENMEMORY2
+	lda		<#SCREENMEMORY1
 	sta		$01
-	lda		>#SCREENMEMORY2
+	lda		>#SCREENMEMORY1
 	sta		$02
-	lda		<#COLORCONTROL2
+	lda		<#COLORCONTROL1
 	sta		$03
-	lda		>#COLORCONTROL2
+	lda		>#COLORCONTROL1
 	sta		$04
 
-	lda		p1DrawCodes			; draw fighter graphic starting from p1 code 0
+	
+	lda		p1Color
+	sta		drawColor
+
+	
+	lda		RyuDrawCodes
 	sta		drawCode
-	lda		p1MasksAddrLow
+	lda		<#RyuStandMask
 	sta		$05
-	lda		p1MasksAddrHigh
+	lda		>#RyuStandMask
 	sta		$06
-	lda		p1XPos
+	lda		#CHARACTERSELECT01
 	sta		drawXPos
 	jsr		drawFighterB
 
+	ldy		#1
+	lda		#130
+	sta		drawCode
+	lda		<#KenStandMask
+	sta		$05
+	lda		>#KenStandMask
+	sta		$06
+	lda		#CHARACTERSELECT02
+	sta		drawXPos
+	jsr		drawFighterB
 
+	lda		FangDrawCodes
+	sta		drawCode
+	lda		<#FangStandMask
+	sta		$05
+	lda		>#FangStandMask
+	sta		$06
+	lda		#CHARACTERSELECT03
+	sta		drawXPos
+	jsr		drawFighterB
+	
 	rts
 	
 	
@@ -2177,9 +2303,9 @@ drawCharacterSelectionScreen		SUBROUTINE
 	
 	
 wait				SUBROUTINE
-	lda		ACR
-	and		#$DF		; set timer to operate in 1 shot mode		
-	sta		ACR
+;	lda		ACR
+;	and		#$DF		; set timer to operate in 1 shot mode		
+;	sta		ACR
 	
 
 .top	
@@ -2202,6 +2328,10 @@ wait				SUBROUTINE
 	
 	
 ; changes ram_05 and ram_06
+; Swaps character data positions - used in conjunction with flipCharacterData and flipCharacterDrawMasks
+; Used to reverse the direction a character is facing during runtime
+; Implemented to support character selection and in preparation for jumping over another character
+
 swapCharacterData		SUBROUTINE
 	
 	lda		ram_03			; used for loading masks sequentially
@@ -2375,7 +2505,8 @@ swapCharacterData		SUBROUTINE
 ; ram_05 lower half of address of character data
 ; ram_06 upper half of address of character data
 ; ram_07 number of drawable cells for character (total number of draw codes)
-	
+; flips character data, byte by byte, so that each byte is flipped end for end.
+; 1010 0011 -> 1100 0101
 	
 flipCharacterData		SUBROUTINE
 
@@ -2446,17 +2577,11 @@ flipCharacterData		SUBROUTINE
 	
 	
 	
-	
-	
-	
-	
-	
-	
-	
 
 
 ; ram_03		low half of address for that character's draw masks
-; ram_04		high half of address for that character's draw masks	
+; ram_04		high half of address for that character's draw masks
+; flips the draw masks for the character such that they correspond to the character facing the opposite direction
 
 flipCharacterDrawMasks		SUBROUTINE
 
@@ -2543,75 +2668,8 @@ flipCharacterDrawMasks		SUBROUTINE
 	
 	
 	
-fadeMusicOut		SUBROUTINE	
-
-.loop
-	dec		VOLUME
-	ldy		#3
-	jsr		wait
-	lda		VOLUME
-	bne		.loop	
 	
-
-	rts
-
-
 	
-fadeMusicIn		SUBROUTINE	
-
-.loop
-	inc		VOLUME
-	ldy		#3
-	jsr		wait
-	lda		VOLUME
-	cmp		#8
-	bne		.loop	
-	
-
-	rts
-	
-		
-
-musicOff		SUBROUTINE	
-
-	lda		#0
-	sta		musicOnOffState
-	lda		SPEAKER1
-	sta		ram_20
-	lda		SPEAKER2
-	sta		ram_21
-	lda		SPEAKER3
-	sta		ram_22
-	lda		SPEAKER4
-	sta		ram_23
-	lda		#0
-	sta		SPEAKER1
-	sta		SPEAKER2
-	sta		SPEAKER3
-	sta		SPEAKER4
-
-	rts
-
-
-	
-musicOn		SUBROUTINE	
-
-	lda		ram_20
-	sta		SPEAKER1
-	lda		ram_21
-	sta		SPEAKER2
-	lda		ram_22
-	sta		SPEAKER3
-	lda		ram_23
-	sta		SPEAKER4
-	
-	lda		#1
-	sta		musicOnOffState
-
-	rts
-
-	
-
 ; $01 - lower half of from address
 ; $02 - upper half of from address
 ; #03 - lower half of to address
@@ -2639,13 +2697,70 @@ swapData			SUBROUTINE
 
 	
 	
+swapKenAndFang			SUBROUTINE
+
+	lda		<#KenStand
+	sta		$01
+	lda		>#KenStand
+	sta		$02
+	lda		<#FangStand
+	sta		$03
+	lda		>#FangStand
+	sta		$04
+	ldy		#255
+	jsr		transferData
+
+	lda		$01
+	clc		
+	adc		#255
+	sta		$01
+	bcc		.noCarry1
+	inc		$02
+.noCarry1
+	
+	lda		$03
+	clc		
+	adc		#255
+	sta		$03
+	bcc		.noCarry2
+	inc		$04
+	
+.noCarry2
+	ldy		#255
+	jsr		transferData
+
+	lda		$01
+	clc		
+	adc		#255
+	sta		$01
+	bcc		.noCarry3
+	inc		$02
+.noCarry3
+	
+	lda		$03
+	clc		
+	adc		#255
+	sta		$03
+	bcc		.noCarry4
+	inc		$04
+	
+.noCarry4
+	ldy		#250
+	jsr		transferData
+
+
+	rts
+
+
+	
+	
 	
 ;	ORG		$1D00		; 256 bytes before where screen memory starts
 irqHandler
 
-	lda		musicOnOffState
-	bne 	.decTimer
-	jmp		.skipMusic
+;	lda		musicOnOffState
+;	bne 	.decTimer
+;	jmp		.skipMusic
 	
 .decTimer
 	dec		ram_00
@@ -2769,7 +2884,7 @@ irqHandler
 	dec		updateXPosPrevs				
 	bne		.decP1AnimTimer
 	
-	lda		#8
+	lda		#16
 	sta		updateXPosPrevs
 	
 	lda		p1XPos
@@ -2783,7 +2898,8 @@ irqHandler
 
 .decP1AnimTimer	
 	lda		p1Action
-	beq		.decP2AnimTimer				; If the character is not mid action, do p2 check
+	beq		.decP1TimeOut				; If the p2 is 
+;	beq		.decP2AnimTimer				; If the character is not mid action, do p2 check
 
 	dec		p1AnimTimer					; Otherwise, decrement their animation timer
 	bne		.decP2AnimTimer				; If it reaches 0, set their action to 0 (default stance)
@@ -2794,6 +2910,13 @@ irqHandler
 	sta		p1IsBlocking
 	sta		p1IsStriking
 	sta		p1IsMidKeel
+
+.decP1TimeOut	
+	lda		p1Timeout
+	beq		.decP2AnimTimer
+
+	dec		p1Timeout
+
 	
 .decP2AnimTimer
 	lda		p2Action
@@ -2853,49 +2976,75 @@ emptySpaceCode
 
 	
 
-p1XPos				.byte	#P1INITXPOS
-p1XPosPrev			.byte	$00
-p1XPosColor			.byte	$00
-p1YPos				.byte	#P1INITYPOS
 p1Action			.byte	$00
 p1AnimTimer			.byte	$00
-p1Color				.byte	$00
-p1Score				.byte	#DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES
-p1ScreamTimer		.byte	$00
+p1IsBlocking		.byte	$00
+p1IsStriking		.byte	$00
+p1IsMidKeel			.byte	$00
+p1XPos				.byte	#P1INITXPOS
+p1Timeout			.byte	$00
+p1MasksAddrLow		.byte	<#RyuStandMask
+p1MasksAddrHigh		.byte	>#RyuStandMask
+p1DrawCodes
+	.byte	#27, #42, #57, #71, #85, #100
+p1XPosPrev			.byte	$00
+p1YPos				.byte	#P1INITYPOS
+p1Score				
+	.byte	#DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES
+p1WasStruck			.byte	$00
+p1WonMatch			.byte	$00
+p1Color				.byte	#BLUE
 
 
-p2DrawCodesStart	.byte	#73
-p2XPos				.byte	#P2INITXPOS
-p2XPosPrev			.byte	$00
-p2XPosColor			.byte	$00
-p2YPos				.byte	#P2INITYPOS
 p2Action			.byte	$00
 p2AnimTimer			.byte	$00
-p2Color				.byte	$00
-p2Score				.byte	#DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES
-p2ScreamTimer		.byte	$00
+p2IsBlocking		.byte	$00
+p2IsStriking		.byte	$00
+p2IsMidKeel			.byte	$00
+p2XPos				.byte	#P2INITXPOS
+p2Timeout			.byte	$00
+p2MasksAddrLow		.byte	<#FangStandMask
+p2MasksAddrHigh		.byte	>#FangStandMask
+p2DrawCodes
+	.byte	#114, #130, #146, #163, #179, #196
+p2XPosPrev			.byte	$00
+p2YPos				.byte	#P2INITYPOS
+p2Score				
+	.byte	#DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES, #DIGITCODES
+p2WasStruck			.byte	$00
+p2WonMatch			.byte	$00
+p2Color				.byte	#RED
 
+
+	
 
 
 aiTimeOut			.byte	$00
-aiDodgeRand			.byte	$00
-aiBlockRand			.byte	$00
-aiStrikeRand		.byte	$00
-aiKickPunchRand		.byte	$00
-
-drawXPos			.byte	$00
-drawCode			.byte	$00
-drawColor			.byte	$00
-
-currentRound		.byte	$00
-roundsPerMatch		.byte	$00
-drawRoundBanner		.byte	$00
+aiDodgeRand			.byte	#12 ; the higher this is, the more likely ai will move right when struck
+aiBlockRand			.byte	#60 ; the higher this is, the more likely ai will block successfully
+aiStrikeRand		.byte	#40 ; the higher this is, the more likely ai will strike when in range
+aiKickPunchRand		.byte	#29 ; the higher this is, the more likely the ai will punch rather than kick when striking
 
 
-updateXPosPrevs		.byte	$00
 
-roundWasWon			.byte	$00
+updateXPosPrevs		.byte	#16
+
+roundWasWon			.byte	#1
 matchWasWon			.byte	$00
+
+
+;userAction			.byte	$00
+;userAnimTimer		.byte	$00
+;userIsBlocking		.byte	$00
+;userIsStriking		.byte	$00
+;userIsMidKeel		.byte	$00
+;userXPos			.byte	$00
+;userTimeOut			.byte	$00
+;userMasksAddrLow	.byte	$00
+;userMasksAddrHigh	.byte	$00
+;userDrawCodes		.byte	$00, $00, $00, $00, $00, $00
+;maxLeft				.byte	$00
+;maxRight			.byte	$00
 
 
 ram_00				.byte	$00		; used in irq handler, volatile
@@ -2908,7 +3057,7 @@ ram_06				.byte	$00		; used in drawStreetFighterBanner, usable in other routines
 ram_07				.byte	$00		; used in drawStreetFighterBanner, usable in other routines
 ram_08				.byte	$00		; used in drawStreetFighterBanner, usable in other routines
 ram_09				.byte	$00		; used in drawStreetFighterBanner, usable in other routines
-ram_10				.byte	$00		; not yet used ...
+ram_10				.byte	$00
 ram_11				.byte	$00
 ram_12				.byte	$00
 ram_13				.byte	$00
@@ -2916,67 +3065,28 @@ ram_14				.byte	$00
 ram_15				.byte	$00
 ram_16				.byte	$00
 ram_17				.byte	$00
-ram_18				.byte	$00
-ram_19				.byte	$00
-ram_20				.byte	$00
-ram_21				.byte	$00
-ram_22				.byte	$00
-ram_23				.byte	$00		; ...
-
-
-p1HitPoints			.byte	$00
-p1IsStriking		.byte	$00
-p1IsBlocking		.byte	$00
-p1WasStruck			.byte	$00
-p1WonMatch			.byte	$00
-p1IsMidKeel			.byte	$00
-
-p2HitPoints			.byte	$00
-p2IsStriking		.byte	$00
-p2WasStruck			.byte	$00
-p2IsBlocking		.byte	$00
-p2WonMatch			.byte	$00
-p2IsMidKeel			.byte	$00
 
 
 aiDir				.byte	$00
-currentLevelTimeOut	.byte	$00		
+currentLevelTimeOut	.byte	#12  ; the lower this is, the faster ai will make decisions
 		
-distanceApart		.byte	$00
+		
 userPress			.byte	$00
 
-
 gameplayMode		.byte	$00			; 0 -> 1 Player			1 -> 2 Player
-musicOnOffState		.byte	$00
+;musicOnOffState		.byte	$00
 
 
-p1DrawCodesAddrLow	.byte	$00
-p1DrawCodesAddrHigh	.byte	$00
 
-p1MasksAddrLow		.byte	$00
-p1MasksAddrHigh		.byte	$00
 
 p1CharacterSelect	.byte	$00
 
 
 
-p2DrawCodesAddrLow	.byte	$00
-p2DrawCodesAddrHigh	.byte	$00
-
-p2MasksAddrLow		.byte	$00
-p2MasksAddrHigh		.byte	$00
-
 
 p2CharacterSelect	.byte	$00
 
 
-
-	
-p1DrawCodes
-	.byte	#27, #42, #57, #71, #85, #100
-	
-p2DrawCodes
-	.byte	#114, #130, #146, #163, #178, #195
 	
 	
 p1RoundWins
@@ -3035,11 +3145,17 @@ KenDrawCodes
 KenDrawableCellsCount
 	.byte	#95
 	
+FangDrawCodes
+	.byte	#114, #130, #146, #163, #179, #196
+	
+FangDrawableCellsCount
+	.byte	#97
+
 	
 	
-	ORG		#4921 ; -> page boundaries: 4864 [page] 5120
+	ORG		#4903 ; -> page boundaries: 4864 [page] 5120
 	
-startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 167 bytes
+startScreenCodes	; [rows], [columns], [code0], [code1],... [code(rows*columns)]	-> 163 bytes
 S
 	.byte	#4, #2, #233, #223, #95, #118, #117, #223, #95, #105
 
@@ -3077,45 +3193,63 @@ V
 
 	; [bitmask for rows 1 & 2], [bitmask for rows 3 & 4], [bitmask for rows 5 & 6] 
 	; the bitmask is used to draw empty cells where the fighter graphic had one, only non empty cells are stored
-	; 30 bytes
+	; 54 bytes
 
 RyuStandMask
-	.byte		$07, $77, $77
+	.byte		$07, $77, $77 ;(15)
 
 RyuKickMask
-	.byte		$0C, $FF, $E6
+	.byte		$0C, $FF, $E6 ;(15)
 
 RyuPunchMask
-	.byte		$0E, $E7, $67
+	.byte		$0E, $E7, $67 ;(14)
 
 RyuBlockMask
-	.byte		$06, $77, $77
+	.byte		$06, $77, $77 ;(14)
 
 RyuStepMask
-	.byte		$07, $77, $77
+	.byte		$07, $77, $77 ;(15)
 
 RyuKeelMask
-	.byte		$0F, $76, $73
+	.byte		$0F, $76, $73 ;(14)
 	
 
 KenStandMask
-	.byte		$0E, $EE, $EF
+	.byte		$0E, $EE, $EF ;(16)
 
 KenKickMask
-	.byte		$07, $FF, $76
+	.byte		$07, $FF, $76 ;(16)
 
 KenPunchMask
-	.byte		$07, $FF, $77
+	.byte		$07, $FF, $77 ;(17)
 
 KenBlockMask
-	.byte		$0E, $EF, $6E
+	.byte		$0E, $EF, $6E ;(15)
 
 KenStepMask
-	.byte		$07, $7F, $FE
+	.byte		$07, $7F, $FE ;(17)
 
 KenKeelMask
-	.byte		$0E, $EF, $66
+	.byte		$0E, $EF, $66 ;(14)
 	
+	
+FangStandMask
+	.byte		$06, $EF, $FE ;(16)
+
+FangKickMask
+	.byte		$03, $FF, $F6 ;(16)
+
+FangPunchMask
+	.byte		$06, $FF, $F7 ;(17)
+
+FangBlockMask
+	.byte		$06, $FF, $77 ;(16)
+
+FangStepMask
+	.byte		$06, $FF, $FE ;(17)
+
+FangKeelMask
+	.byte		$0E, $EE, $EE ;(15)
 	
 	ORG		#5120		; forces our fighter graphics to begin where Vic is obtaining its character information from (character code 0 refers to the first 8 bytes starting at 6144, and so on)
 	
@@ -3213,9 +3347,57 @@ RyuKeel
 	.byte	$03, $03, $02, $00, $03, $03, $01, $01, $c7, $af, $2f, $99, $b0, $e0, $e0, $e0, $80, $c0, $e0, $f0, $f0, $70, $70, $70 
 	.byte	$f0, $f0, $f0, $70, $20, $18, $3e, $00, $70, $70, $08, $3c, $1e, $00, $00, $00 
 
+
+
+;	ORG 	#6032	
+
+SecondCharacterBegin	
+
+FangStand
+	.byte	$00, $00, $00, $e3, $9c, $80, $ff, $80, $00, $00, $00, $80, $80, $80, $80, $80
+	.byte	$7f, $00, $01, $03, $03, $f0, $9e, $c0, $ff, $80, $bc, $31, $81, $f1, $93, $83, $ff, $80, $80, $80, $bf, $21, $61, $06
+	.byte	$40, $78, $1c, $12, $21, $21, $40, $c1, $ff, $00, $63, $36, $1c, $84, $60, $18, $0c, $1b, $11, $09, $18, $10, $10, $10, $00, $00, $00, $80, $80, $80, $c0, $40 
+	.byte	$83, $82, $86, $f4, $f8, $f8, $f8, $f8, $84, $82, $81, $fc, $83, $80, $80, $8e, $18, $14, $94, $74, $f2, $13, $13, $13, $40, $40, $40, $60, $e0, $f0, $f0, $f0 
+	.byte	$01, $01, $01, $01, $03, $06, $08, $0f, $0a, $0b, $09, $89, $c9, $19, $31, $e0, $10, $10, $10, $30, $58, $06, $83, $ff
+
+FangKick
+	.byte	$3c, $27, $20, $3f, $20, $ff, $20, $27, $f0, $90, $10, $f0, $10, $ff, $20, $20 
+	.byte	$00, $00, $00, $00, $00, $f8, $88, $88, $00, $00, $38, $2c, $26, $1b, $08, $08, $2c, $6c, $c0, $e0, $3c, $a0, $20, $3f, $20, $20, $60, $60, $5e, $c2, $c2, $c6 
+	.byte	$88, $9c, $92, $81, $e1, $30, $10, $18, $08, $0e, $06, $0c, $08, $c8, $78, $38, $00, $00, $00, $07, $3c, $04, $04, $04, $0c, $08, $70, $a0, $30, $10, $08, $0c 
+	.byte	$06, $03, $00, $00, $00, $00, $00, $00, $0c, $04, $83, $81, $c0, $70, $10, $10, $06, $02, $07, $05, $c4, $6d, $3b, $0b, $04, $04, $04, $fe, $fe, $7e, $7e, $7e 
+	.byte	$18, $0c, $04, $02, $03, $01, $01, $00, $0b, $08, $0c, $04, $3e, $02, $83, $ff
+
+FangPunch	
+	.byte	$00, $00, $00, $07, $04, $04, $07, $04, $00, $00, $00, $1c, $e4, $04, $fc, $04
+	.byte	$03, $00, $00, $00, $00, $00, $07, $04, $ff, $04, $04, $0d, $19, $1c, $87, $f4, $ff, $04, $e4, $84, $8c, $0c, $88, $9b, $fe, $00, $00, $00, $00, $fc, $84, $84 
+	.byte	$04, $04, $07, $00, $f0, $ff, $e0, $f0, $04, $07, $c0, $63, $51, $58, $fc, $01, $18, $f8, $00, $18, $b0, $e0, $20, $00, $18, $60, $d8, $88, $4c, $c4, $84, $86 
+	.byte	$fe, $f1, $00, $00, $00, $00, $00, $00, $10, $f0, $10, $10, $1f, $04, $04, $04, $c0, $20, $10, $0c, $e3, $1f, $00, $70, $c2, $c2, $a2, $a2, $a3, $97, $9f, $9f 
+	.byte	$0c, $08, $18, $1c, $36, $60, $41, $7f, $50, $50, $50, $5d, $45, $c4, $86, $03, $9f, $80, $80, $c0, $60, $18, $0c, $fc 
+
+FangBlock
+	.byte	$00, $00, $00, $07, $04, $04, $07, $04, $00, $00, $00, $1c, $e4, $04, $fc, $04
+	.byte	$03, $00, $00, $f8, $c8, $e8, $e9, $f9, $ff, $04, $04, $0d, $19, $1c, $e7, $14, $ff, $04, $e4, $84, $8c, $2c, $c8, $1b, $ec, $00, $00, $00, $00, $fc, $84, $84 
+	.byte	$f9, $89, $89, $46, $40, $20, $21, $3e, $04, $c7, $a0, $33, $19, $08, $e2, $31, $18, $f8, $00, $18, $b0, $e0, $20, $00, $18, $60, $d8, $88, $4c, $c4, $84, $86 
+	.byte	$08, $04, $04, $04, $07, $04, $04, $04, $c0, $20, $10, $0c, $e3, $1f, $00, $70, $c2, $c2, $a2, $a2, $a3, $97, $9f, $9f 
+	.byte	$0c, $08, $18, $1c, $36, $60, $41, $7f, $50, $50, $50, $5d, $45, $c4, $86, $03, $9f, $80, $80, $c0, $60, $18, $0c, $fc 
+
+FangStep
+	.byte	$00, $00, $00, $71, $4e, $40, $7f, $40, $00, $00, $00, $c0, $40, $40, $c0, $40
+	.byte	$3f, $00, $00, $00, $01, $01, $78, $4f, $ff, $40, $4e, $d8, $98, $c0, $78, $49, $ff, $40, $40, $40, $c0, $cf, $88, $b8, $c0, $00, $00, $00, $00, $c0, $40, $40 
+	.byte	$40, $40, $7c, $06, $0d, $09, $18, $10, $41, $7f, $00, $31, $1b, $8e, $c2, $20, $81, $86, $0d, $88, $04, $0c, $08, $08, $00, $00, $80, $80, $c0, $40, $40, $60 
+	.byte	$20, $61, $42, $7c, $7c, $7c, $7d, $01, $8c, $42, $41, $40, $fe, $81, $00, $06, $08, $0c, $0a, $ca, $3a, $f9, $09, $09, $20, $20, $20, $20, $30, $f0, $f0, $f0 
+	.byte	$02, $06, $08, $10, $70, $80, $80, $ff, $06, $0e, $0a, $32, $62, $42, $82, $83, $08, $08, $08, $0c, $0e, $03, $03, $ff
+
+FangKeel
+	.byte	$01, $01, $01, $01, $01, $ff, $01, $01, $e7, $3c, $00, $ff, $00, $ff, $bb, $d7, $80, $80, $80, $80, $80, $ff, $00, $00 
+	.byte	$01, $01, $01, $f9, $f9, $fd, $7d, $3f, $ef, $d7, $bb, $ff, $82, $fe, $fe, $ff, $00, $00, $00, $3e, $3e, $fe, $fc, $e6 
+	.byte	$0f, $07, $1b, $7d, $fc, $f9, $f3, $f7, $ff, $39, $93, $c7, $f7, $7f, $bf, $ff, $ce, $de, $df, $df, $df, $df, $df, $df 
+	.byte	$f7, $f1, $ff, $ff, $3f, $01, $01, $01, $c4, $04, $04, $04, $ff, $ff, $ff, $ff, $1e, $3e, $38, $38, $f0, $e0, $e0, $e0 
+	.byte	$03, $03, $07, $04, $0e, $1f, $1f, $1f, $f7, $f7, $f7, $f7, $71, $f1, $e1, $c0, $e0, $e0, $e0, $90, $b8, $fe, $ff, $ff 
+
 	
 	
-	
+;	ORG		#6808
 	
 KenStand		
 	.byte	$01, $02, $02, $06, $0c, $18, $18, $18, $ff, $01, $00, $00, $00, $00, $00, $00, $00, $00, $e0, $e0, $30, $10, $10, $08
@@ -3263,7 +3445,211 @@ KenKeel
 	.byte	$3e, $7c, $7c, $78, $60, $f0, $f0, $00, $0e, $0e, $0e, $1e, $00, $3e, $7e, $00
 	
 
+;	ORG		#7570
+	
+	
+	
+	
+;fadeMusicOut		SUBROUTINE	
+
+;.loop
+;	dec		VOLUME
+;	ldy		#3
+;	jsr		wait
+;	lda		VOLUME
+;	bne		.loop	
+	
+
+;	rts
+
+
+	
+;fadeMusicIn		SUBROUTINE	
+
+;.loop
+;	inc		VOLUME
+;	ldy		#3
+;	jsr		wait
+;	lda		VOLUME
+;	cmp		#8
+;	bne		.loop	
+	
+
+;	rts
+	
+		
+
+;musicOff		SUBROUTINE	
+
+;	lda		#0
+;	sta		musicOnOffState
+;	lda		SPEAKER1
+;	sta		ram_14
+;	lda		SPEAKER2
+;	sta		ram_15
+;	lda		SPEAKER3
+;	sta		ram_16
+;	lda		SPEAKER4
+;	sta		ram_17
+;	lda		#0
+;	sta		SPEAKER1
+;	sta		SPEAKER2
+;	sta		SPEAKER3
+;	sta		SPEAKER4
+
+;	rts
+
+
+	
+;musicOn		SUBROUTINE	
+
+;	lda		ram_14
+;	sta		SPEAKER1
+;	lda		ram_15
+;	sta		SPEAKER2
+;	lda		ram_16
+;	sta		SPEAKER3
+;	lda		ram_17
+;	sta		SPEAKER4
+	
+;	lda		#1
+;	sta		musicOnOffState
+
+;	rts
+
+	
+
+
+
+
+drawXPos			.byte	$00
+drawCode			.byte	$00
+drawColor			.byte	$00
+
+currentRound		.byte	$00
+roundsPerMatch		.byte	$00
+
+columnMask			.byte	$00
+
+
+
+
+
+	
+; draws the fighter's current animation frame
+; drawXPos must hold the lower byte of the address in screen memory for the top left cell of the character
+; drawYPos must hold the upper byte of the address in screen memory for the top left cell of the character (future - jumpn')
+; drawCode must hold the character code to begin printing from (depends on the fighter's animation frame)
+; zero page $05 and $06 must hold the address of the draw mask to use for the fighter graphic
+
+
+drawFighterB		SUBROUTINE
+
+	ldx		drawCode
+.drawTop	
+
+	ldy		#0				; load the mask for the first 2 rows of the fighter graphic
+	lda		($05),y
+	sta		columnMask
+	ldy		drawXPos		; load the offset from SCREENMEMORY2 to begin drawing the fighter graphic
+	lda		#6		
+	sta		ram_03			; nRows per fighter graphic
+
+.loop1Init
+	lda		#4
+	sta		ram_04			; nColumns per row Row
+
+.loop1
+	lda		columnMask		; test if the current cell is blank or not
+	clc
+	asl
+	sta		columnMask
+	bcc		.empty			; if so, fill with empty space
+	
+	txa						; otherwise, transfer the drawCode into a
+	inx						; increment draw code for next iteration
+	jmp		.skipEmpty
+	
+.empty	
+	lda		emptySpaceCode	; load the empty space code
+	
+	
+.skipEmpty
+	sta		($01),y			; store screen code in screen memory offset by y
+	lda		drawColor
+	sta		($03),y			; store color code in color control offset by y
+	iny						; increment current offset for each cell drawn
+
+	dec		ram_04			; decrement nColumns left in current row
+	bne		.loop1			; if not done, do next cell in current row
+
+	tya
+	clc
+	adc		#18				; currentOffset = currentOffset + (nColumnsInScreen(22) - nColumnsInGraphic(4))
+	tay						; move back into y
+	
+	dec		ram_03			; decrement number of rows left in fighter graphic
+	beq		.return			; if 0 rows left, we're done drawing
+	lda		ram_03
+	clc
+	lsr						; test if it's odd (each column mask covers 2 rows, so ..
+	bcs		.loop1Init		; ..if odd, print next row with second half of same mask)
+
+	sty		ram_06			; save current offset in ram
+	inc		$05				; otherwise...
+	ldy		#0				; set for indirect indexed addressing
+	lda		($05),y			; load the next mask
+	sta		columnMask
+	ldy		ram_06			; restore current offset
+	jmp		.loop1Init		; draw next two rows
+	
+	
+	
+.return	
+	rts	
+
+		
+
+
+	
 
 	
 	
 	
+	
+transferData		SUBROUTINE
+
+		
+	dey
+.loop
+	lda		($01),y
+	sta		($03),y
+	
+	dey
+	bne		.loop
+	
+	lda		($01),y
+	sta		($03),y
+	
+
+	rts
+	
+	
+	
+	
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
