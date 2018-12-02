@@ -741,7 +741,11 @@ updateScore		SUBROUTINE
 	
 .break
 	iny
-
+	tya
+	asl
+	asl
+	tay
+	
 	sty		ram_04
 	lda		ram_03				; load 100's digit
 	sec
