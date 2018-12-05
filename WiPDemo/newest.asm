@@ -846,11 +846,10 @@ processWinState		SUBROUTINE
 	dec		currentLevelTimeOut
 	dec		currentLevelTimeOut
 	dec		currentLevelTimeOut
-	dec		currentLevelTimeOut
 	lda		currentLevelTimeOut
-	cmp		#200					; check for wraparound
-	bmi		.skip2
-	lda		#0
+	cmp		#0						; check for wraparound
+	bne		.skip2
+	lda		#3
 	sta		currentLevelTimeOut		; win match here instead?
 		
 	
