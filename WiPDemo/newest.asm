@@ -2031,37 +2031,28 @@ drawStreetFighterBanner		SUBROUTINE
 		jmp		.outerTop
 
 		
-; Prints 2 Player/1 Player text
+; Arcade / Infinite
 .printInstructions
-
-	lda		#49						; '1'
-	sta		GAMEMODESCREENLOC2
-
-	ldy		#14
-	lda		#50
-	sta		GAMEMODESCREENLOC2,y	; '2'
 	
 
-	ldx		#5
-	ldy		#21						
+	ldy		#7						
+	ldx		#21
 .loop1    
-	lda		startGameString,x
-	sta		GAMEMODESCREENLOC2,y
+	lda		startGameInfinite,y
+	sta		GAMEMODESCREENLOC2,x
 	
-	dey
 	dex
+	dey
 	bpl		.loop1
 
-	tya
-	cmp		#14
-	bmi		.end
 
-	
-	ldx		#5
-	sec
-	sbc		#8
-	tay
-	jmp		.loop1
+	ldy		#5
+.loop2
+	lda		startGameArcade,y
+	sta		GAMEMODESCREENLOC2,y
+
+	dey
+	bpl		.loop2
 	
 	
 .end	
@@ -2144,7 +2135,7 @@ eraseCurrentRound			SUBROUTINE
 
 
 ; Draws the indicator for choosing 1 Player or 2 Player mode
-; 
+; Changed to Arcade/Infinte mode
 drawGameModeIndicator		SUBROUTINE	
 
 	lda		#32
@@ -2159,15 +2150,16 @@ drawGameModeIndicator		SUBROUTINE
 	lda		gameplayMode
 	beq		.onePlayer
 	ldy		#21
+	ldx		#7
 	jmp		.draw
 	
 .onePlayer
-	ldy		#7
-
+	ldy		#5
+	ldx		#5
 .draw	
 
 	lda		#68
-	ldx		#7
+;	ldx		#7
 .loop2
 	sta		GAMEMODESCREENLOC1,y
 	dey
@@ -3122,6 +3114,12 @@ p2LifeBarTicks
 ; player
 startGameString
     .byte	#16, #12, #1, #25, #5, #18
+
+startGameArcade
+	.byte	#1, #18, #3, #1, #4, #5
+	
+startGameInfinite	
+	.byte	#9, #14, #6, #9, #14, #9, #20, #5
 	
 ; Select A Character	
 CharacterSelectionString
