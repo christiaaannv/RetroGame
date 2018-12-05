@@ -606,6 +606,9 @@ mainLoop	SUBROUTINE
 	
 ; Can probably combine checkP1Struck and checkP2Struck by adding a little something something.
 ; RAM values for attackerIsStriking, defenderIsBlocking
+; To combine these would require generic variables like those mentioned above
+; as well as load and store instructions before and after the function to initialize for it's call
+; and use the outcome thus only a few bytes would be saved.
 checkP1Struck	SUBROUTINE
 
 	lda		p2IsStriking		; if p2 is not striking, don't update the p2WasStruck state
@@ -750,7 +753,7 @@ updateScore		SUBROUTINE
 	sty		ram_04
 	lda		ram_03				; load 100's digit
 	sec
-	sbc		ram_04				; subtract 100 for each opponent round win
+	sbc		ram_04				; subtract 400 for each opponent round win
 	
 	
 	ldx		#0
@@ -2709,7 +2712,7 @@ swapData			SUBROUTINE
 
 	
 ; Since character codes are used for drawing characters and only
-; 256 codes are available, we transfer Ken's data into character code memory	
+; 256 codes are available, we transfer Ken's data into character code memory if a user selects Ken	
 swapKenAndFang			SUBROUTINE
 
 	lda		<#KenStand
@@ -3551,7 +3554,6 @@ columnMask			.byte	$00
 	
 ; draws the fighter's current animation frame
 ; drawXPos must hold the lower byte of the address in screen memory for the top left cell of the character
-; drawYPos must hold the upper byte of the address in screen memory for the top left cell of the character (future - jumpn')
 ; drawCode must hold the character code to begin printing from (depends on the fighter's animation frame)
 ; zero page $05 and $06 must hold the address of the draw mask to use for the fighter graphic
 
