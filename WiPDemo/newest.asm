@@ -196,7 +196,7 @@ main
 	lda		>#FangKick
 	sta		$04
 	ldy		#128
-	jsr		swapData
+	jsr		swapData	; Ken is placed in FangKick for drawing character select screen
 
 	
 	ldx		#$08
@@ -511,7 +511,6 @@ nogo2
 	jsr		flipCharacterDrawMasks
 
 
-.test1	
 ;	jsr		fadeMusicOut
 ;	jsr		musicOn
 ;	jsr		fadeMusicIn
@@ -542,6 +541,7 @@ mainLoop	SUBROUTINE
 	and		#$1F
 	sta		p1AnimTimer
 
+;	2-Player -- code for a generalized doUserAction function's initialization
 ;	lda		#$78
 ;	sta		maxLeft
 ;	lda		p2XPos
@@ -563,6 +563,7 @@ mainLoop	SUBROUTINE
 	jsr		doUserAction			; process the user's input possibly producing some action
 
 	
+;	2-Player -- code for a generalized doUserAction function's wrapup
 ;	lda		<#userAction
 ;	sta		$01
 ;	lda		>#userAction
@@ -687,7 +688,7 @@ checkP2Struck	SUBROUTINE
 
 	
 	
-	
+; updates the score based on the round wins for each user.
 updateScore		SUBROUTINE
 	
 	lda		p1WonMatch
@@ -802,7 +803,7 @@ updateScore		SUBROUTINE
 	
 	
 
-
+; Controls ai difficulty and other state changes when a match is won
 processWinState		SUBROUTINE
 
 	
@@ -841,12 +842,14 @@ processWinState		SUBROUTINE
 	sta		aiBlockRand
 	dec		currentLevelTimeOut
 	dec		currentLevelTimeOut
+	dec		currentLevelTimeOut
+	dec		currentLevelTimeOut
 	lda		currentLevelTimeOut
-	cmp		#0
-	bne		.skip2
-	lda		#2
-	sta		currentLevelTimeOut
-	
+	cmp		#200					; check for wraparound
+	bmi		.skip2
+	lda		#0
+	sta		currentLevelTimeOut		; win match here instead?
+		
 	
 
 
@@ -870,6 +873,8 @@ processWinState		SUBROUTINE
 	
 	
 	
+	
+; Check if either player won the round
 checkRoundWin	SUBROUTINE
 	
 .checkP1
@@ -917,7 +922,7 @@ checkRoundWin	SUBROUTINE
 
 
 
-
+; Check if either player won the match
 checkMatchWin		SUBROUTINE
 
 	ldx		#3
@@ -994,7 +999,7 @@ initRoundIndicators		SUBROUTINE
 	
 	
 	
-	
+; Erases the fighters and draws them in their starting positions	
 initRound		SUBROUTINE
 	
 	lda		p1XPos
@@ -1163,7 +1168,7 @@ updateHUD		SUBROUTINE
 	
 	
 	
-
+; Initializes color control table for the HUD
 initColors		SUBROUTINE
 
 
@@ -1202,7 +1207,7 @@ initColors		SUBROUTINE
 	
 	
 	
-
+; Draws the lifebars
 drawLifebars	 SUBROUTINE
 
 	clc										
@@ -1250,7 +1255,8 @@ drawLifebars	 SUBROUTINE
 	
 	
 	
-	
+; Uses the input stored in userPress to set state vars
+; and draw user animation frames	
 doUserAction		SUBROUTINE
 ;p1Action				0 = standing
 ;						1 = kick
@@ -1438,7 +1444,7 @@ checkTimeOut
 	
 	
 	
-
+; Computes the next action for the AI
 getAINextAction		SUBROUTINE
 
 	lda		aiTimeOut
@@ -1540,7 +1546,8 @@ getAINextAction		SUBROUTINE
 	
 	
 	
-	
+; Uses the result of getAINextAction to set state vars
+; and draw animation frames
 doAIAction		SUBROUTINE
 
 
@@ -1720,7 +1727,7 @@ doAIAction		SUBROUTINE
 	
 
 rand	 SUBROUTINE			; Pseudo Random Number Generator
-							; Seems like 29 is the mean - if result is 29, discard and call again
+							; Seems like 29 is the mean - if result is 29, discard and call again?
 							
 								; Returns a semi-random number in register a
 
@@ -1750,7 +1757,6 @@ rand	 SUBROUTINE			; Pseudo Random Number Generator
 	
 
 ; draws empty space characters over the entire screen
-; load 'x' with the color to set for all screen characters
 fillScreen		SUBROUTINE
 
 	ldy		#255
@@ -1771,7 +1777,9 @@ fillScreen		SUBROUTINE
 	rts
 	
 
-	
+
+; sets the screen character color to entirely one color
+; load 'a' with the color to set for all screen characters
 colorScreen			SUBROUTINE
 
 	ldy		#255
@@ -1794,24 +1802,14 @@ colorScreen			SUBROUTINE
 	
 	
 	
-	
-	
-;p1Action				0 = standing
-;						1 = kick
-;						2 = punch
-;						3 = block
-;						4 = step
-;						5 = flying kick
-;						6 = was struck
-
-	
-	
 getInput		SUBROUTINE		; loads a with..
+								; 0	-> a (left)
+								; 1 -> right (kick)
 								; 2 -> down (punch)
 								; 3 -> s (block)
-								; 0	-> a (left)
 								; 4 -> d (right)
-								; 1 -> right (kick)
+								; 254 -> w (color select)
+								; 255 -> no input
 								 
 								; registers ruined..
 								; a
@@ -1819,7 +1817,7 @@ getInput		SUBROUTINE		; loads a with..
 	
 	jsr		GETIN				; read from input buffer
 	cmp		#0					; check if buffer was empty
-	bne		.checkForDownKey	; if so, process input
+	bne		.checkForDownKey	; if not, process input
 	jmp		.return
 
 	
@@ -1856,15 +1854,15 @@ getInput		SUBROUTINE		; loads a with..
 
 	
 .checkForRightKey
-	cmp		#29
+	cmp		#29					; ascii code for ->
 	bne		.checkForWKey
 	
 	lda		#RIGHTKEY
 	rts
 	
 	
-.checkForWKey
-	cmp		#87
+.checkForWKey					
+	cmp		#87					; ascii code for W
 	bne		.return
 	
 	lda		#WKEY
@@ -1905,10 +1903,10 @@ clearInputBuffer		SUBROUTINE
 
 
 
-	
-clearFighter	 SUBROUTINE		
 ; draws blank spaces over the fighter	
 ; the position of the leftmost cell of the player must be stored in drawXPos before calling this function
+
+clearFighter	 SUBROUTINE		
 	
 	ldy		drawXPos
 	ldx		#6
@@ -1943,8 +1941,10 @@ clearFighter	 SUBROUTINE
 	
 	
 	
+
 	
-	
+; Draws the start screen banner using built in Vic20 character codes
+
 drawStreetFighterBanner		SUBROUTINE	
 
 
@@ -2028,7 +2028,7 @@ drawStreetFighterBanner		SUBROUTINE
 		jmp		.outerTop
 
 		
-
+; Prints 2 Player/1 Player text
 .printInstructions
 
 	lda		#49						; '1'
@@ -2067,7 +2067,7 @@ drawStreetFighterBanner		SUBROUTINE
 
 	
 	
-	
+; Draws the score using state vars
 drawScore		SUBROUTINE
 
 	ldy		#4
@@ -2086,7 +2086,7 @@ drawScore		SUBROUTINE
 	
 	
 	
-	
+; Draws the text indicating the current round of the match
 drawCurrentRound			SUBROUTINE
 
 
@@ -2122,7 +2122,7 @@ drawCurrentRound			SUBROUTINE
 	
 
 	
-	
+; Erases the text indicating the current round of the match
 eraseCurrentRound			SUBROUTINE
 
 	lda		emptySpaceCode
@@ -2140,7 +2140,8 @@ eraseCurrentRound			SUBROUTINE
 	
 
 
-
+; Draws the indicator for choosing 1 Player or 2 Player mode
+; 
 drawGameModeIndicator		SUBROUTINE	
 
 	lda		#32
@@ -2181,6 +2182,7 @@ drawGameModeIndicator		SUBROUTINE
 ; 2  - ryu
 ; 12 - ken
 ; 20 - fang
+; 2 Player code commented out
 drawCharSelectIndicator		SUBROUTINE	
 
 	lda		#EMPTYSPACECODE
@@ -2211,6 +2213,7 @@ drawCharSelectIndicator		SUBROUTINE
 
 	
 	
+; Draws the character selection instruction string with sound effects
 
 drawCharacterSelectIntro		SUBROUTINE
 
@@ -2249,8 +2252,9 @@ drawCharacterSelectIntro		SUBROUTINE
 	
 	
 	
-	
-	
+; Note that KenStand data was transferred into FangKick prior to this
+; function call in the main loop and FangKick (starting at code 130)
+; is drawn using KenStandMask
 drawCharacterSelectionScreen		SUBROUTINE
 
 	
@@ -2332,7 +2336,11 @@ wait				SUBROUTINE
 	
 	
 ; changes ram_05 and ram_06
-; Swaps character data positions - used in conjunction with flipCharacterData and flipCharacterDrawMasks
+; Swaps character data intrinsically - used in conjunction with flipCharacterData and flipCharacterDrawMasks
+; Processes each row of character data, counting the number of non-blank (drawable) cells
+; If even number of drawable cells in row -- Swap outermost columns with eachother and innermost columns with eachother
+; If odd number of drawable cells in row -- Swap outermost columns with eachother, leave inner column
+; Note that max columns per row is 4
 ; Used to reverse the direction a character is facing during runtime
 ; Implemented to support character selection and in preparation for jumping over another character
 
@@ -2700,7 +2708,8 @@ swapData			SUBROUTINE
 
 
 	
-	
+; Since character codes are used for drawing characters and only
+; 256 codes are available, we transfer Ken's data into character code memory	
 swapKenAndFang			SUBROUTINE
 
 	lda		<#KenStand
@@ -2899,11 +2908,11 @@ irqHandler
 	
 ; Reset animations in progress to default stance if their animation timer reaches 0
 ; decrement animTimers each timer interrupt
+; when animTimer reaches 0, set the corresponding action to 0 (default)
 
 .decP1AnimTimer	
-	lda		p1Action
-	beq		.decP1TimeOut				; If the p2 is 
-;	beq		.decP2AnimTimer				; If the character is not mid action, do p2 check
+	lda		p1Action					; When p1AnimTimer reaches 0, p1Action is set to 0
+	beq		.decP1TimeOut
 
 	dec		p1AnimTimer					; Otherwise, decrement their animation timer
 	bne		.decP2AnimTimer				; If it reaches 0, set their action to 0 (default stance)
@@ -3043,11 +3052,11 @@ matchWasWon			.byte	$00
 ;userIsStriking		.byte	$00
 ;userIsMidKeel		.byte	$00
 ;userXPos			.byte	$00
-;userTimeOut			.byte	$00
+;userTimeOut		.byte	$00
 ;userMasksAddrLow	.byte	$00
 ;userMasksAddrHigh	.byte	$00
 ;userDrawCodes		.byte	$00, $00, $00, $00, $00, $00
-;maxLeft				.byte	$00
+;maxLeft			.byte	$00
 ;maxRight			.byte	$00
 
 
@@ -3452,7 +3461,7 @@ KenKeel
 ;	ORG		#7570
 	
 	
-	
+; No Room for these functions.	
 	
 ;fadeMusicOut		SUBROUTINE	
 
