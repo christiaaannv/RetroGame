@@ -70,6 +70,9 @@ P2ROUNDWINSCOLORSTART	.equ	#38481
 P1SCORESTART			.equ	#7812
 P2SCORESTART			.equ	#7829
 
+WINBANNERSCREENLOC		.equ	#7904
+WINSCORESCREENLOC1		.equ	#8106
+WINSCORESCREENLOC2		.equ	#8172
 
 PRINTROUNDSTART			.equ	#7841
 PRINTROUNDCOLORSTART	.equ	#38561
@@ -164,15 +167,22 @@ BLUE					.equ	#6
 YELLOW					.equ	#7
 
 
+ARCADE					.equ	#0
+INFINITE				.equ	#1
+
 MASKSPERCHARACTER		.equ	#18
+
+
+
 
 main
 
 ;	lda		#128
 ;	sta		$028A
 	
-	lda		<#RyuStandMask
-	sta		ram_03
+	
+	lda		<#RyuStandMask			; we initially drew ryu facing right and the others facing left
+	sta		ram_03					; flip him for the character select screen so they face the same way
 	lda		>#RyuStandMask
 	sta		ram_04
 	lda		<#RyuStand
@@ -298,8 +308,8 @@ nogo
 	
 	jsr		drawCharacterSelectionScreen
 	lda		#2
-	sta		p1CharacterSelect
-	sta		p2CharacterSelect
+	sta		p1CharacterSelect		; Ryu (2), Ken(10), Fang(18) -> also used as offset for drawing selection indicator
+;	sta		p2CharacterSelect		; 2 player not implemented -> ran out of room
 	jsr		drawCharSelectIndicator
 nogo2
 	jsr		getInput
@@ -336,10 +346,10 @@ nogo2
 	ldy		p1Color
 	iny
 	cpy		#8
-	bne		.allG
+	bne		.setColor
 	ldy		#1
 
-.allG	
+.setColor	
 	sty		p1Color
 	jsr		drawCharacterSelectionScreen
 	jmp		nogo2
@@ -377,14 +387,14 @@ nogo2
 	
 	lda		p1CharacterSelect
 	cmp		#2
-	bne		.kenAndFang
+	bne		.kenAndFang				; when p1 selects ken or fang
 	jmp		.ryu
 
 	
 	
 .kenAndFang
 	
-	lda		<#RyuDrawCodes
+	lda		<#RyuDrawCodes			; enemy is Ryu -- See Story Line
 	sta		$01
 	lda		>#RyuDrawCodes
 	sta		$02
@@ -401,12 +411,12 @@ nogo2
 	sta		p2MasksAddrHigh	
 
 
-	lda		<#FangStand
-	sta		ram_05
-	lda		>#FangStand
-	sta		ram_06
+	lda		<#FangStand				; used in three sequential functions at .allGo to face
+	sta		ram_05					; the character to the right -- opposite of how they were drawn
+	lda		>#FangStand				; If p1 selects Ken, Ken is transferred into memory at FangStand
+	sta		ram_06					; and flipped by these functions
 
-	lda		<#p1DrawCodes
+	lda		<#p1DrawCodes			; used in transferData function at both .doKen and .doFang
 	sta		$03
 	lda		>#p1DrawCodes
 	sta		$04
@@ -425,8 +435,8 @@ nogo2
 	ldy		#6
 	jsr		transferData
 
-	jsr		swapKenAndFang
-	
+	jsr		swapKenAndFang			; only ken or fang can fit in custom character code memory at once
+									; along with Ryu
 	lda		<#KenStandMask
 	sta		p1MasksAddrLow
 	lda		>#KenStandMask
@@ -526,6 +536,22 @@ mainLoop	SUBROUTINE
 
 	jsr		processWinState	
 	
+	
+	lda		aiWon
+	beq		.notAIWon
+	jsr		drawWinBanner
+;	jsr		initGame
+;	jmp		main
+	
+.notAIWon
+	lda		p1Won
+	beq		.notP1Won
+	jsr		drawWinBanner
+;	jsr		initGame
+;	jmp		main
+	
+	
+.notP1Won	
 	jsr		drawScore
 	
 	jsr		clearInputBuffer		; clears user input from buffer (presses can accumulate leading to strange behavior)
@@ -537,7 +563,8 @@ mainLoop	SUBROUTINE
 	sta		userPress				; store result in ram location (not efficient but more explicit)			
 
 
-	lda		p1AnimTimer
+	lda		p1AnimTimer				; handles odd instance where interrupt occurs at specific time and
+									; animation timer wraps around rather than being set to 0 properly.
 	and		#$1F
 	sta		p1AnimTimer
 
@@ -601,6 +628,144 @@ mainLoop	SUBROUTINE
 
 
 	
+	
+	
+	
+drawWinBanner		SUBROUTINE	
+
+	lda		#240					; load code for telling vic chip where to look for character data
+	sta		$9005					; store in Vic chip (36869)
+
+	
+	lda		#32					; fill screen uses the current empty space code to fill the screen
+	jsr		fillScreen
+	
+	lda		#RED				; character color
+	jsr		colorScreen
+
+	
+	ldy		#5			; draw "player" string
+.loop1
+	lda		playerString,y
+	sta		WINBANNERSCREENLOC,y
+	dey
+	bpl		.loop1
+	
+	lda		p1Won
+	beq		.aiWon
+	lda		#49			; ascii '1'
+	jmp		.print
+	
+.aiWon
+	lda		#50			; ascii '2'
+
+.print
+	ldy		#7
+	sta		WINBANNERSCREENLOC,y
+
+	
+	ldy		#12
+	ldx		#3
+.loop2
+	lda		winsString,x
+	sta		WINBANNERSCREENLOC,y
+	dey
+	dex
+	bpl		.loop2
+
+	
+	ldy		#4
+.loop3	
+	lda		scoreString,y
+	sta		WINSCORESCREENLOC1,y
+
+	dey
+	bpl		.loop3
+	
+	
+	clc
+	ldy		#4
+.loop4	
+	lda		p1Score,y
+	adc		#31
+	sta		WINSCORESCREENLOC2,y
+	dey
+	bpl		.loop4
+	
+
+	
+	
+.gameOverLoop
+	jmp		.gameOverLoop
+	
+	
+	
+;initGame		SUBROUTINE
+
+;	lda		#0
+;	sta		matchWasWon
+;	sta		p1Won
+;	sta		aiWon
+;	sta		gameplayMode
+;	sta		p1CharacterSelect
+;	sta		p2WonMatch
+;	sta		p1WonMatch
+
+
+;	lda		#12
+;	sta		currentLevelTimeOut
+;	sta		aiDodgeRand
+
+;	lda		P1INITXPOS
+;	sta		p1XPos
+;	lda		P2INITXPOS
+;	sta		p2XPos
+;	lda		#29
+;	sta		aiKickPunchRand
+;	lda		#40
+;	sta		aiStrikeRand
+;	lda		#60
+;	sta		aiBlockRand
+	
+;	jsr		initRound
+;	jsr		initRoundIndicators
+;	jsr		initLifebars
+
+	
+;		lda		<#RyuDrawCodes			; enemy is Ryu -- See Story Line
+;	sta		$01
+;	lda		>#RyuDrawCodes
+;	sta		$02
+;	lda		<#p2DrawCodes
+;	sta		$03
+;	lda		>#p2DrawCodes
+;	sta		$04
+;	ldy		#6
+;	jsr		transferData
+
+;	lda		<#RyuStandMask
+;	sta		p2MasksAddrLow
+;	lda		>#RyuStandMask
+;	sta		p2MasksAddrHigh	
+	
+	
+;		lda		<#RyuDrawCodes			; enemy is Ryu -- See Story Line
+;	sta		$01
+;	lda		>#RyuDrawCodes
+;	sta		$02
+;	lda		<#p2DrawCodes
+;	sta		$03
+;	lda		>#p2DrawCodes
+;	sta		$04
+;	ldy		#6
+;	jsr		transferData
+
+;	lda		<#RyuStandMask
+;	sta		p2MasksAddrLow
+;	lda		>#RyuStandMask
+;	sta		p2MasksAddrHigh	
+	
+;	rts
 
 
 	
@@ -653,6 +818,7 @@ checkP1Struck	SUBROUTINE
 ; Continually sets p2WasStruck each iteration of the game loop
 ; p2WasStruck is consumed when the p1 strike animation ends, so if p2 blocked
 ; or moved during the animation, they will avoid the strike from p1
+; AI is considered p2 in this implementation
 checkP2Struck	SUBROUTINE
 
 	lda		p1IsStriking		; if p1 is not striking, don't update the p2WasStruck state
@@ -813,63 +979,82 @@ processWinState		SUBROUTINE
 
 	lda		roundWasWon
 	beq		.skip1
-	
+	clc
+
 .loop1
 	lda		p1Action
 	adc		p2Action
-	bne		.loop1
+	bne		.loop1					; let anim timers reset player actions
 	
 	inc 	currentRound
 	jsr		initLifebars
 	jsr		initRound
-	jsr		drawCurrentRound
-	lda		#0
-	sta		roundWasWon
+;	lda		#0
+;	sta		roundWasWon
 	
 .skip1
 
 	lda		matchWasWon
-	beq		.end
+	beq		.end					; if not, rts
 
-	lda		gameplayMode
-	bne		.skip2
-	
-	lda		p1WonMatch
-	beq		.skip2					; if p1 won match, increase difficulty
-	clc
-	lda		#25
-	adc		aiStrikeRand
-	sta		aiStrikeRand
-	lda		#25
-	adc		aiBlockRand
-	sta		aiBlockRand
-	dec		currentLevelTimeOut
-	dec		currentLevelTimeOut
-	dec		currentLevelTimeOut
-	lda		currentLevelTimeOut
-	cmp		#0						; check for wraparound
-	bne		.skip2
-	lda		#3
-	sta		currentLevelTimeOut		; win match here instead?
-		
-	
-
-
-.skip2
 	jsr		updateScore
 
 	jsr		initRoundIndicators
 	jsr		initLifebars
 
 	
+	lda		p1WonMatch
+	beq		.skip3					; if p1 won match, increase difficulty, else game over
+	clc
+	lda		#50
+	adc		aiStrikeRand
+	sta		aiStrikeRand
+	lda		#50
+	adc		aiBlockRand
+	sta		aiBlockRand
+	dec		currentLevelTimeOut
+	dec		currentLevelTimeOut
+	dec		currentLevelTimeOut
+	lda		currentLevelTimeOut
+	cmp		#0						; check for max difficulty defeated
+	bne		.skip2
+
+
+	lda		gameplayMode			; if in arcade mode, p1 wins
+	cmp		#ARCADE
+	beq		.skip4
+	
+	lda		#3						; else reset lvl timeout to max difficulty
+	sta		currentLevelTimeOut
+
+
+
+
+.skip2
 	lda		#0
 	sta		matchWasWon
 	sta		p1WonMatch
 	sta		p2WonMatch
+	jmp		.end
 
+
+.skip3
+	lda		#1
+	sta		aiWon
+	lda		#0
+	sta		roundWasWon
+	jmp		.end
 	
+.skip4
+	lda		#1
+	sta		p1Won
+	lda		#0
+	sta		roundWasWon
 
 .end
+
+	jsr		drawCurrentRound
+
 	rts
 	
 	
@@ -2082,7 +2267,12 @@ drawScore		SUBROUTINE
 ; Draws the text indicating the current round of the match
 drawCurrentRound			SUBROUTINE
 
+	lda		roundWasWon
+	beq		.rts
 
+	lda		#0
+	sta		roundWasWon
+	
 	ldx		#ROUNDLETTERCODES
 	
 	ldy		#0
@@ -2107,7 +2297,7 @@ drawCurrentRound			SUBROUTINE
 	jsr		wait
 	jsr		eraseCurrentRound
 	
-
+.rts
 	rts
 
 
@@ -2685,7 +2875,6 @@ flipCharacterDrawMasks		SUBROUTINE
 swapData			SUBROUTINE
 
 	dey
-	
 .loop
 	lda		($01),y
 	sta		ram_03
@@ -2694,10 +2883,18 @@ swapData			SUBROUTINE
 	lda		ram_03
 	sta		($03),y
 	
-
 	dey
-	bpl		.loop
+	bne		.loop
 
+	
+	lda		($01),y
+	sta		ram_03
+	lda		($03),y
+	sta		($01),y
+	lda		ram_03
+	sta		($03),y
+	
+	
 	rts
 
 
@@ -3038,7 +3235,8 @@ updateXPosPrevs		.byte	#16
 
 roundWasWon			.byte	#1
 matchWasWon			.byte	$00
-
+aiWon				.byte	$00
+p1Won				.byte	$00
 
 ;userAction			.byte	$00
 ;userAnimTimer		.byte	$00
@@ -3110,13 +3308,23 @@ p2LifeBarTicks
 	.byte		#2, #2, #2, #2, #2, #2, #2		; change to use bit mask instead
 
 
-; player
-startGameString
+; "your score"	
+scoreString
+	.byte	#19, #3, #15, #18, #5
+
+; "wins"
+winsString
+	.byte	#23, #9, #14, #19
+
+; "player"
+playerString
     .byte	#16, #12, #1, #25, #5, #18
 
+; "arcade"
 startGameArcade
 	.byte	#1, #18, #3, #1, #4, #5
 	
+; "infinite"
 startGameInfinite	
 	.byte	#9, #14, #6, #9, #14, #9, #20, #5
 	
